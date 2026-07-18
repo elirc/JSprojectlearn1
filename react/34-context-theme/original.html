@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 34 — prop drilling (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .box { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 6px 0; }
+          .dark { background: #222; color: #eee; } .dark .box { border-color: #555; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // The theme is needed by SaveButton, five levels down. Every
+    // component in between must carry it — none of them USE it.
+
+    function Page({ theme, onToggleTheme }) {          // carries theme (doesn't use it)
+      return (
+        <div className="box">
+          Page
+          <Toolbar theme={theme} onToggleTheme={onToggleTheme} />
+        </div>
+      );
+    }
+
+    function Toolbar({ theme, onToggleTheme }) {        // carries theme (doesn't use it)
+      return (
+        <div className="box">
+          Toolbar
+          <ActionsMenu theme={theme} onToggleTheme={onToggleTheme} />
+        </div>
+      );
+    }
+
+    function ActionsMenu({ theme, onToggleTheme }) {    // carries theme (doesn't use it)
+      return (
+        <div className="box">
+          ActionsMenu
+          <SaveSection theme={theme} onToggleTheme={onToggleTheme} />
+        </div>
+      );
+    }
+
+    function SaveSection({ theme, onToggleTheme }) {    // carries theme (doesn't use it)
+      return (
+        <div className="box">
+          SaveSection
+          <SaveButton theme={theme} onToggleTheme={onToggleTheme} />
+        </div>
+      );
+    }
+
+    function SaveButton({ theme, onToggleTheme }) {     // FINALLY uses it
+      return (
+        <button
+          style={theme === 'dark'
+            ? { background: '#444', color: '#fff' }
+            : { background: '#eee', color: '#000' }}
+          onClick={onToggleTheme}
+        >
+          Save (and toggle theme — {theme})
+        </button>
+      );
+    }
+
+    function App() {
+      const [theme, setTheme] = useState('light');
+      const toggle = () => setTheme(theme === 'light' ? 'dark' : 'light');
+
+      return (
+        <div className={theme}>
+          <h1>Prop drilling</h1>
+          <Page theme={theme} onToggleTheme={toggle} />
+          <p style={{ color: '#888', fontSize: 14 }}>
+            `theme` appears in FIVE component signatures; ONE reads it.
+            The middle three are couriers — and every new "global"
+            (locale, current user, feature flags) re-walks this same
+            hallway, widening every signature it passes. Renaming the
+            prop touches five files. Middle components can't be reused
+            without inheriting cargo they don't care about.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

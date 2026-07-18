@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 10 — mutated state (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // A tag editor. Every handler mutates the existing array/object
+    // and then set-states it back. Buttons that "do nothing" ahead.
+    function App() {
+      const [tags, setTags] = useState(['react', 'js']);
+      const [settings, setSettings] = useState({ theme: 'light', fontSize: 14 });
+      const [draft, setDraft] = useState('');
+
+      function addTag() {
+        tags.push(draft);      // mutate...
+        setTags(tags);         // ...and hand back THE SAME array.
+        setDraft('');          // <- this is the only reason the UI
+      }                        //    updates at all! Remove it and
+                               //    addTag appears 100% dead.
+
+      function removeLast() {
+        tags.pop();
+        setTags(tags);         // same array again — React bails out.
+        // Click this: NOTHING happens. React compares old state and
+        // new state with Object.is; same reference = "nothing
+        // changed" = skip the re-render. The array DID change — the
+        // screen just doesn't know.
+      }
+
+      function embiggenFont() {
+        settings.fontSize += 2; // mutate the object...
+        setSettings(settings);  // ...same reference. Dead button.
+      }
+
+      return (
+        <div>
+          <h1>Tags</h1>
+          <p style={{ fontSize: settings.fontSize }}>
+            {tags.join(', ') || '(none)'}
+          </p>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)}
+                 placeholder="new tag" />
+          <button onClick={addTag}>add</button>
+          <button onClick={removeLast}>remove last (dead button)</button>
+          <button onClick={embiggenFont}>bigger font (dead button)</button>
+          <p style={{ color: '#666', fontSize: 13 }}>
+            "add" only works by accident — setDraft('') forces a render
+            that happens to read the mutated array. The other two
+            buttons mutate state correctly... and the screen never
+            hears about it.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

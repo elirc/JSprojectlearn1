@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Router (refactored)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 560px; margin: 40px auto; }
+    nav a { margin-right: 12px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <a href="#/">Home</a>
+    <a href="#/users">Users</a>
+    <a href="#/about">About</a>
+    <a href="#/broken/link">Broken link</a>
+  </nav>
+  <div id="app"></div>
+
+  <script>
+    // --- inline copy of refactored/router.js (tested in
+    //     router.test.js; file:// pages can't import modules) --------
+    function compile(pattern) {
+      return pattern
+        .split('/')
+        .filter(Boolean)
+        .map((seg) => (seg.startsWith(':') ? { param: seg.slice(1) } : seg.toLowerCase()));
+    }
+
+    function matchRoute(routes, path) {
+      const pathSegs = path.split('/').filter(Boolean);
+      for (const route of routes) {
+        const patSegs = compile(route.path);
+        if (patSegs.length !== pathSegs.length) continue;
+        const params = {};
+        let ok = true;
+        for (let i = 0; i < patSegs.length; i++) {
+          const pat = patSegs[i];
+          if (typeof pat === 'object') params[pat.param] = decodeURIComponent(pathSegs[i]);
+          else if (pat !== pathSegs[i].toLowerCase()) { ok = false; break; }
+        }
+        if (ok) return { route, params };
+      }
+      return null;
+    }
+
+    function hashToPath(hash) {
+      const path = hash.replace(/^#/, '').split('?')[0];
+      return path === '' ? '/' : path;
+    }
+
+    // ============ THE APP ==========================================
+    const USERS = { 7: 'Ada Lovelace', 8: 'Grace Hopper' };
+
+    // Views are FUNCTIONS receiving params — the URL is just state
+    // (project 40's mindset: current route = current state).
+    const el = (tag, text) => {
+      const node = document.createElement(tag);
+      node.textContent = text; // textContent: params come from the URL = user input!
+      return node;
+    };
+
+    const ROUTES = [
+      { path: '/', view: () => [el('h1', 'Home')] },
+      {
+        path: '/users',
+        view: () => [
+          el('h1', 'Users'),
+          ...Object.entries(USERS).map(([id, name]) => {
+            const a = el('a', name);
+            a.href = `#/users/${id}`;
+            return a;
+          }),
+        ],
+      },
+      {
+        path: '/users/:id',
+        view: ({ id }) =>
+          id in USERS
+            ? [el('h1', USERS[id])]
+            : [el('h1', 'No such user'), el('p', `id "${id}" isn't in the directory`)],
+      },
+      { path: '/about', view: () => [el('h1', 'About')] },
+    ];
+
+    const notFound = (path) => [el('h1', '404'), el('p', `No route matches ${path}`)];
+
+    // ============ THE GLUE (the only browser-aware part) ===========
+    function render() {
+      const path = hashToPath(location.hash);
+      const match = matchRoute(ROUTES, path);
+      const nodes = match ? match.route.view(match.params) : notFound(path);
+      document.getElementById('app').replaceChildren(...nodes);
+    }
+
+    window.addEventListener('hashchange', render);
+    render(); // initial load: the URL in the address bar already IS the state
+  </script>
+</body>
+</html>

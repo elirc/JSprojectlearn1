@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Stopwatch (original)</title>
+  <style> body { font-family: sans-serif; text-align: center; }
+          #display { font-size: 48px; font-family: monospace; } </style>
+</head>
+<body>
+  <h1>Stopwatch</h1>
+  <div id="display">00:00.0</div>
+  <button onclick="start()">Start</button>
+  <button onclick="stop()">Stop</button>
+  <button onclick="reset()">Reset</button>
+
+  <script>
+    // The intuitive approach: count the ticks.
+    var tenths = 0;         // elapsed time = number of ticks so far
+    var interval = null;
+
+    function start() {
+      if (interval) return;
+      interval = setInterval(function () {
+        tenths++;           // <- the elapsed time IS the tick count
+        show();
+      }, 100);
+    }
+
+    function stop() {
+      clearInterval(interval);
+      interval = null;
+    }
+
+    function reset() {
+      stop();
+      tenths = 0;
+      show();
+    }
+
+    function show() {
+      var mins = Math.floor(tenths / 600);
+      var secs = Math.floor((tenths % 600) / 10);
+      var t = tenths % 10;
+      document.getElementById("display").innerText =
+        (mins < 10 ? "0" : "") + mins + ":" + (secs < 10 ? "0" : "") + secs + "." + t;
+    }
+
+    // Why this is wrong: setInterval(fn, 100) does NOT mean "exactly
+    // every 100ms". It means "no sooner than 100ms, whenever the
+    // browser gets to it". Timers slip a few ms every tick, and
+    // background tabs get throttled to once per SECOND or worse.
+    //
+    // Try it: start the watch next to your phone's stopwatch, switch
+    // to another tab for two minutes, come back. This one is seconds
+    // behind — it counted ticks, and ticks were withheld.
+    //
+    // Counting ticks means ACCUMULATING error. The clock never lies;
+    // the tick counter always does, eventually.
+  </script>
+</body>
+</html>

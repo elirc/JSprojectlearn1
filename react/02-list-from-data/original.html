@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 02 — hardcoded list (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; }
+          li.done { text-decoration: line-through; color: #999; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // A checklist where every item is its own useState and its own JSX.
+    function App() {
+      const [step1Done, setStep1Done] = useState(false);
+      const [step2Done, setStep2Done] = useState(false);
+      const [step3Done, setStep3Done] = useState(false);
+      const [step4Done, setStep4Done] = useState(false);
+
+      // "how many are done" — hand-summed, and it must be UPDATED
+      // whenever someone adds step 5. (They will forget.)
+      const doneCount =
+        (step1Done ? 1 : 0) + (step2Done ? 1 : 0) +
+        (step3Done ? 1 : 0) + (step4Done ? 1 : 0);
+
+      return (
+        <div>
+          <h1>Release checklist</h1>
+          <p>{doneCount} of 4 done</p>
+          <ul>
+            <li className={step1Done ? 'done' : ''} onClick={() => setStep1Done(!step1Done)}>
+              Run the tests
+            </li>
+            <li className={step2Done ? 'done' : ''} onClick={() => setStep2Done(!step2Done)}>
+              Update the changelog
+            </li>
+            <li className={step3Done ? 'done' : ''} onClick={() => setStep3Done(!step3Done)}>
+              Tag the release
+            </li>
+            <li className={step4Done ? 'done' : ''} onClick={() => setStep4Done(!step4Done)}>
+              Tell the team
+            </li>
+          </ul>
+          {/* Want the steps to come from a server? To be reorderable?
+              To add a "reset all" button? Each feature must touch
+              every hardcoded pair of (useState, <li>) — the LIST
+              doesn't exist anywhere; only four individuals do. */}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

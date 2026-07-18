@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Expenses (original)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 560px; margin: 40px auto; }
+    li { padding: 2px 0; }
+  </style>
+</head>
+<body>
+  <h1>Expenses</h1>
+  <input id="desc" placeholder="what">
+  <input id="amount" placeholder="how much" size="8">
+  <select id="cat"><option>food</option><option>transport</option><option>fun</option></select>
+  <button onclick="add()">Add</button>
+  <ul id="list"></ul>
+  <div id="total"></div>
+  <div id="byCat"></div>
+
+  <script>
+    // Problem 1: money as floating point. Add 0.10 + 0.20 and the
+    // total shows 0.30000000000000004. Project 32 solved this with
+    // integer cents; here it's unlearned and the bug is in
+    // PERSISTED data, so it compounds forever.
+    var expenses = [];
+
+    // Problem 2: localStorage as an afterthought. The raw array is
+    // stringified as-is; the day a field is renamed, every existing
+    // user's saved data crashes the app on load (JSON.parse succeeds,
+    // then code hits undefined fields). No version, no validation.
+    if (localStorage.expenses) {
+      expenses = JSON.parse(localStorage.expenses);
+    }
+
+    function add() {
+      expenses.push({
+        desc: document.getElementById("desc").value,
+        amount: parseFloat(document.getElementById("amount").value), // "abc" -> NaN, pushed anyway
+        cat: document.getElementById("cat").value,
+      });
+      localStorage.expenses = JSON.stringify(expenses);
+      redraw();
+    }
+
+    function redraw() {
+      var html = "";
+      var total = 0;
+      for (var i = 0; i < expenses.length; i++) {
+        html += "<li>" + expenses[i].desc + " — " + expenses[i].amount +
+          " (" + expenses[i].cat + ")</li>";
+        total += expenses[i].amount;
+      }
+      document.getElementById("list").innerHTML = html;
+      // Problem 3: derived numbers are computed in THREE places
+      // (here, below, and implicitly in the list) with three chances
+      // to disagree. The category math below double-counts... can
+      // you spot it before the total contradicts itself?
+      document.getElementById("total").textContent = "total: " + total;
+
+      var cats = {};
+      for (var i = 0; i < expenses.length; i++) {
+        if (!cats[expenses[i].cat]) cats[expenses[i].cat] = 0;
+        // the double-count: += amount for the cat AND "food" gets
+        // everything again because of a copy-paste "default":
+        cats[expenses[i].cat] += expenses[i].amount;
+        cats["food"] = (cats["food"] || 0) + (expenses[i].cat === "food" ? 0 : expenses[i].amount);
+      }
+      var catHtml = "";
+      for (var c in cats) catHtml += c + ": " + cats[c] + "<br>";
+      document.getElementById("byCat").innerHTML = catHtml;
+
+      // Problem 4: no chart at all — "we'll add charts later" usually
+      // means the data shapes were never designed for it.
+    }
+
+    redraw();
+  </script>
+</body>
+</html>

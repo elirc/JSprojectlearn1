@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 05 — variant props (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+          button { margin: 4px; border-radius: 6px; border: 1px solid #ccc; cursor: pointer; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    // One prop per AXIS of variation, each a named value from a fixed
+    // set. Mutually exclusive things are one prop, not N booleans —
+    // "primary AND danger" is now unrepresentable (js#40's principle
+    // applied to component APIs).
+    const VARIANTS = {
+      default: { background: '#eee', color: '#000' },
+      primary: { background: '#36c', color: '#fff' },
+      danger: { background: '#c33', color: '#fff' },
+      ghost: { background: 'transparent', borderStyle: 'dashed' },
+    };
+
+    const SIZES = {
+      small: { fontSize: 11, padding: '4px 8px' },
+      medium: { fontSize: 14, padding: '8px 16px' },
+      large: { fontSize: 18, padding: '12px 24px' },
+    };
+
+    function Button({ variant = 'default', size = 'medium', onClick, children }) {
+      if (!(variant in VARIANTS)) throw new Error(`Unknown variant "${variant}"`);
+      if (!(size in SIZES)) throw new Error(`Unknown size "${size}"`);
+
+      return (
+        <button style={{ ...VARIANTS[variant], ...SIZES[size] }} onClick={onClick}>
+          {children}
+        </button>
+      );
+    }
+
+    function App() {
+      return (
+        <div>
+          <h1>Buttons</h1>
+          {/* the call sites read like the design system's vocabulary: */}
+          <Button variant="primary">Save</Button>
+          <Button variant="danger" size="large">Delete</Button>
+          <Button variant="ghost" size="small">Cancel</Button>
+
+          {/* children instead of a `label` string: content is an open
+              door — icons, kbd hints, anything: */}
+          <Button variant="primary">💾 Save <kbd>Ctrl+S</kbd></Button>
+
+          <p style={{ color: '#666', fontSize: 14 }}>
+            4 variants x 3 sizes = 12 states, every one designed. The
+            32-combination boolean space is gone. (In the TypeScript
+            track, <code>variant: 'primary' | 'danger' | ...</code>
+            makes typos a compile error too.)
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

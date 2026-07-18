@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 47 — tick-counting stopwatch (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; text-align: center; margin-top: 60px; }
+          h2 { font-size: 48px; font-family: monospace; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // js#46's tick-counting stopwatch, now with React: the elapsed
+    // time IS the number of times the interval has fired.
+    function App() {
+      const [tenths, setTenths] = useState(0);
+      const [running, setRunning] = useState(false);
+
+      useEffect(() => {
+        if (!running) return;
+        const id = setInterval(() => {
+          setTenths((t) => t + 1); // count the tick = trust the timer
+        }, 100);
+        return () => clearInterval(id);
+      }, [running]);
+      // (Deps, cleanup, updater fn — projects 17/18/11 all correctly
+      // applied! The React plumbing is FINE. The MODEL is wrong:
+      // setInterval(100) does not fire every 100ms — it fires no
+      // sooner than 100ms, when the tab is focused, less often when
+      // throttled. Every late tick is time silently lost.)
+
+      const mins = Math.floor(tenths / 600);
+      const secs = Math.floor((tenths % 600) / 10);
+
+      return (
+        <div>
+          <h1>Stopwatch</h1>
+          <h2>
+            {String(mins).padStart(2, '0')}:
+            {String(secs).padStart(2, '0')}.
+            {tenths % 10}
+          </h2>
+          <button onClick={() => setRunning(!running)}>
+            {running ? 'stop' : 'start'}
+          </button>{' '}
+          <button onClick={() => { setRunning(false); setTenths(0); }}>reset</button>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Start it next to your phone's stopwatch, switch to another
+            tab for two minutes, come back: this one is SECONDS
+            behind — background tabs throttle timers, and this
+            stopwatch counted ticks that never came (js#46's drift,
+            reproduced faithfully in a new framework). Also: 10
+            renders per second, forever, to keep a number nobody
+            reads between repaints.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

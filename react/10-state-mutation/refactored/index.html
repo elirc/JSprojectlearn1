@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 10 — immutable updates (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    function App() {
+      const [tags, setTags] = useState(['react', 'js']);
+      const [settings, setSettings] = useState({ theme: 'light', fontSize: 14 });
+      const [draft, setDraft] = useState('');
+
+      // THE RULE: never change state — REPLACE it. Every update
+      // builds a new array/object; React sees a new reference and
+      // knows to re-render. (The old state is untouched, which is
+      // also what makes undo/redo possible — js#39.)
+
+      function addTag() {
+        setTags((current) => [...current, draft]);  // new array: spread + append
+        setDraft('');
+      }
+
+      function removeLast() {
+        setTags((current) => current.slice(0, -1)); // new array: slice
+      }
+
+      function embiggenFont() {
+        setSettings((current) => ({                 // new object: spread + override
+          ...current,
+          fontSize: current.fontSize + 2,
+        }));
+      }
+
+      return (
+        <div>
+          <h1>Tags</h1>
+          <p style={{ fontSize: settings.fontSize }}>
+            {tags.join(', ') || '(none)'}
+          </p>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)}
+                 placeholder="new tag" />
+          <button onClick={addTag}>add</button>
+          <button onClick={removeLast}>remove last</button>
+          <button onClick={embiggenFont}>bigger font</button>
+
+          <p style={{ color: '#666', fontSize: 13 }}>
+            The cheat sheet — for every mutating operation, the
+            replacing one:<br />
+            push → [...arr, item] · pop → arr.slice(0, -1) ·
+            splice(i,1) → arr.filter(...) · arr[i] = x → arr.map(...) ·
+            obj.k = v → {'{...obj, k: v}'} · sort → [...arr].sort
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

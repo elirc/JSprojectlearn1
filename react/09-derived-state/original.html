@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 09 — stored derived state (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const PRODUCTS = [
+      { id: 1, name: 'Keyboard', price: 89 },
+      { id: 2, name: 'Mouse', price: 25 },
+      { id: 3, name: 'Monitor', price: 340 },
+      { id: 4, name: 'Mousepad', price: 12 },
+    ];
+
+    function App() {
+      const [query, setQuery] = useState('');
+      const [maxPrice, setMaxPrice] = useState(500);
+
+      // Derived values... stored in state, kept in sync BY HAND:
+      const [filtered, setFiltered] = useState(PRODUCTS);
+      const [total, setTotal] = useState(466);   // hand-computed. stale bait.
+      const [count, setCount] = useState(4);
+
+      // An effect whose entire job is recomputing what render already knew:
+      useEffect(() => {
+        const next = PRODUCTS.filter(
+          (p) => p.name.toLowerCase().includes(query.toLowerCase()),
+        );
+        setFiltered(next);
+        setCount(next.length);
+        setTotal(next.reduce((sum, p) => sum + p.price, 0));
+      }, [query]);
+      // ^ spot the bug: maxPrice is not in the deps AND not in the
+      // filter. It was added later; whoever added the slider below
+      // forgot to update this effect. Drag the slider: NOTHING
+      // happens. Three copies of derived state, one sync point,
+      // and the sync point is already wrong.
+      //
+      // Also: every keystroke renders TWICE (once for query, once
+      // when the effect writes filtered/count/total).
+
+      return (
+        <div>
+          <h1>Products</h1>
+          <input placeholder="search..." value={query}
+                 onChange={(e) => setQuery(e.target.value)} />
+          <p>
+            Max price: {maxPrice}
+            <input type="range" min="10" max="500" value={maxPrice}
+                   onChange={(e) => setMaxPrice(Number(e.target.value))} />
+          </p>
+          <p>{count} products, total ${total}</p>
+          <ul>
+            {filtered.map((p) => <li key={p.id}>{p.name} — ${p.price}</li>)}
+          </ul>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

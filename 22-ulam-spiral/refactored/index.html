@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ulam spiral (refactored)</title>
+  <style> body { font-family: sans-serif; text-align: center; } </style>
+</head>
+<body>
+  <h1>Ulam spiral</h1>
+  <p>Primes on a number spiral — note the diagonal streaks.</p>
+  <canvas id="canvas" width="404" height="404"></canvas>
+
+  <script>
+    const CONFIG = {
+      cellSize: 4,   // pixels per number
+      dotSize: 3,    // pixels per prime dot
+      count: 10000,  // how many numbers to spiral out
+    };
+
+    // ================= THE SPIRAL (pure math) ====================
+    /**
+     * Generator that yields grid positions walking a square spiral
+     * out from (0, 0): right, up, left, down, with leg lengths
+     * 1, 1, 2, 2, 3, 3, ... (two legs per length — that's the rule
+     * the original buried in counter bookkeeping).
+     *
+     * A generator produces values ON DEMAND with yield — the caller
+     * pulls positions out one at a time, and pairs each with whatever
+     * it wants (prime dots today, letters or colors tomorrow).
+     */
+    function* spiralPositions() {
+      const DIRECTIONS = [
+        { x: 1, y: 0 },  // right
+        { x: 0, y: -1 }, // up
+        { x: -1, y: 0 }, // left
+        { x: 0, y: 1 },  // down
+      ];
+      let position = { x: 0, y: 0 };
+      let directionIndex = 0;
+      let legLength = 1;
+
+      yield position;
+      while (true) {
+        // two legs share each length: e.g. right 2, up 2, then left 3...
+        for (const _ of [0, 1]) {
+          const direction = DIRECTIONS[directionIndex];
+          for (let step = 0; step < legLength; step++) {
+            position = { x: position.x + direction.x, y: position.y + direction.y };
+            yield position;
+          }
+          directionIndex = (directionIndex + 1) % 4;
+        }
+        legLength++;
+      }
+    }
+
+    // ================= PRIMALITY (pure math) =====================
+    /** Trial division up to sqrt(n) — project 08's lesson, reused. */
+    function isPrime(n) {
+      if (n < 2) return false;
+      for (let factor = 2; factor * factor <= n; factor++) {
+        if (n % factor === 0) return false;
+      }
+      return true;
+    }
+
+    // ================= RENDERING =================================
+    function drawSpiral(ctx, { cellSize, dotSize, count }) {
+      const center = {
+        x: ctx.canvas.width / 2,
+        y: ctx.canvas.height / 2,
+      };
+
+      const positions = spiralPositions();
+      for (let n = 1; n <= count; n++) {
+        const { x, y } = positions.next().value; // grid -> pixels is ONE
+        if (isPrime(n)) {                        // formula, in ONE place
+          ctx.fillRect(
+            center.x + x * cellSize,
+            center.y + y * cellSize,
+            dotSize,
+            dotSize,
+          );
+        }
+      }
+    }
+
+    const ctx = document.getElementById('canvas').getContext('2d');
+    drawSpiral(ctx, CONFIG);
+  </script>
+</body>
+</html>

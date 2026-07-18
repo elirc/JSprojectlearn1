@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 34 — context theme (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .box { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 6px 0; }
+          .dark { background: #222; color: #eee; } .dark .box { border-color: #555; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useContext, createContext, useMemo } = React;
+
+    // ==== the theme module: context + provider + hook =============
+    const ThemeContext = createContext(null);
+
+    function ThemeProvider({ children }) {
+      const [theme, setTheme] = useState('light');
+      const value = useMemo(
+        () => ({
+          theme,
+          toggleTheme: () => setTheme((t) => (t === 'light' ? 'dark' : 'light')),
+        }),
+        [theme],
+      );
+      return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
+    }
+
+    // A custom hook as the ONLY consumption door: nicer call sites,
+    // and a real error if someone forgets the provider (instead of
+    // a cryptic null crash three components later — js#30's loud
+    // failure at the boundary).
+    function useTheme() {
+      const context = useContext(ThemeContext);
+      if (context === null) {
+        throw new Error('useTheme must be used inside <ThemeProvider>');
+      }
+      return context;
+    }
+
+    // ==== the tree: NO component carries theme anymore ============
+    function Page() {
+      return <div className="box">Page<Toolbar /></div>;
+    }
+
+    function Toolbar() {
+      return <div className="box">Toolbar<ActionsMenu /></div>;
+    }
+
+    function ActionsMenu() {
+      return <div className="box">ActionsMenu<SaveSection /></div>;
+    }
+
+    function SaveSection() {
+      return <div className="box">SaveSection<SaveButton /></div>;
+    }
+
+    function SaveButton() {
+      const { theme, toggleTheme } = useTheme(); // reach straight up
+      return (
+        <button
+          style={theme === 'dark'
+            ? { background: '#444', color: '#fff' }
+            : { background: '#eee', color: '#000' }}
+          onClick={toggleTheme}
+        >
+          Save (and toggle theme — {theme})
+        </button>
+      );
+    }
+
+    function ThemedShell({ children }) {
+      const { theme } = useTheme();
+      return <div className={theme}>{children}</div>;
+    }
+
+    function App() {
+      return (
+        <ThemeProvider>
+          <ThemedShell>
+            <h1>Context theme</h1>
+            <Page />
+            <p style={{ color: '#888', fontSize: 14 }}>
+              Page, Toolbar, ActionsMenu, SaveSection: zero props. The
+              two components that USE the theme (SaveButton, the shell)
+              call useTheme() directly. Adding a consumer six levels
+              deep = one hook call, zero signature changes.
+            </p>
+          </ThemedShell>
+        </ThemeProvider>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 43 — alert validation (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; }
+          input { display: block; margin: 6px 0; padding: 6px; width: 260px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    function App() {
+      const [username, setUsername] = useState('');
+      const [email, setEmail] = useState('');
+      const [password, setPassword] = useState('');
+      const [submitted, setSubmitted] = useState(false);
+
+      function handleSubmit(e) {
+        e.preventDefault();
+        // Validation = an if-chain that STOPS AT THE FIRST problem
+        // and reports it... in an alert. (js#31's original, in React,
+        // with a worse messenger.)
+        if (username.length < 3) {
+          window.alert('Username must be at least 3 characters!');
+          return;
+        }
+        if (!email.includes('@')) {
+          window.alert('Invalid email!');
+          return;
+        }
+        if (password.length < 8) {
+          window.alert('Password too short!');
+          return;
+        }
+        setSubmitted(true);
+      }
+
+      return (
+        <form onSubmit={handleSubmit}>
+          <h1>Sign up</h1>
+          <input placeholder="username" value={username}
+                 onChange={(e) => setUsername(e.target.value)} />
+          <input placeholder="email" value={email}
+                 onChange={(e) => setEmail(e.target.value)} />
+          <input type="password" placeholder="password" value={password}
+                 onChange={(e) => setPassword(e.target.value)} />
+          <button type="submit">create account</button>
+          {submitted && <p>✅ account created</p>}
+
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Fill everything wrong and submit: an alert about ONE
+            problem. Fix it, submit, get the NEXT alert — three round
+            trips to learn three things (js#31's one-error-per-submit
+            disease). Nothing marks WHICH field is wrong. The alert
+            blocks the page. And the rules live inside the submit
+            handler — the next form will copy-paste this chain.
+          </p>
+        </form>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

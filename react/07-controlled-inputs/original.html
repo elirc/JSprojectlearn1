@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 07 — DOM-poking form (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; }
+          input, button { margin: 4px 0; display: block; padding: 6px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // A signup form written by someone who knows the DOM better than
+    // React: read values OUT of the page when you need them.
+    function App() {
+      const [message, setMessage] = useState('');
+
+      function handleSubmit() {
+        // reach into the DOM by id, jQuery-style:
+        const username = document.getElementById('username').value;
+        const email = document.getElementById('email').value;
+        setMessage(`Submitted: ${username} / ${email}`);
+      }
+
+      function fillDemoData() {
+        // writing values is ALSO DOM surgery:
+        document.getElementById('username').value = 'ada';
+        document.getElementById('email').value = 'ada@analytical.engine';
+      }
+
+      return (
+        <div>
+          <h1>Sign up</h1>
+          <input id="username" placeholder="username" />
+          {/* live preview? can't — React has no idea what's typed.
+              disable submit until valid? same problem. The username
+              exists ONLY inside the DOM node, invisible to renders. */}
+          <input id="email" placeholder="email" />
+          <button onClick={fillDemoData}>fill demo data</button>
+          <button onClick={handleSubmit}>Submit</button>
+          <p>{message}</p>
+          {/* Two sources of truth now exist: React state (message) and
+              DOM values (the inputs). React re-renders from ITS truth;
+              yours in the DOM survives only by luck. Render this form
+              conditionally, or give the inputs a changing key, and the
+              typed values silently vanish. And document.getElementById
+              breaks entirely the moment there are two of these forms
+              on one page (duplicate ids). */}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

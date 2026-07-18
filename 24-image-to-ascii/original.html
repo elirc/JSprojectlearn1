@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Image to ASCII (original)</title>
+  <style> pre { font: 7px/7px monospace; } </style>
+</head>
+<body>
+  <h1>Image to ASCII</h1>
+  <input type="file" id="file">
+  <pre id="out"></pre>
+
+  <script>
+    // Everything in one event handler: file reading, image loading,
+    // canvas sampling, brightness math, character mapping, output.
+    document.getElementById("file").onchange = function (e) {
+      var reader = new FileReader();
+      reader.onload = function (ev) {          // callback...
+        var img = new Image();
+        img.onload = function () {             // ...inside a callback
+          var canvas = document.createElement("canvas");
+          canvas.width = 100;                  // output width: hardcoded
+          canvas.height = Math.floor(100 * img.height / img.width * 0.5);
+          var ctx = canvas.getContext("2d");
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          var data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+
+          var result = "";
+          for (var y = 0; y < canvas.height; y++) {
+            for (var x = 0; x < canvas.width; x++) {
+              var i = (y * canvas.width + x) * 4;
+              // brightness: just average the channels (greens look too
+              // dark this way — human eyes don't weigh RGB equally,
+              // but who knew?)
+              var bright = (data[i] + data[i + 1] + data[i + 2]) / 3;
+              // hardcoded ramp + hand-computed thresholds. want a
+              // denser ramp? recompute every boundary below by hand.
+              if (bright > 223) result += " ";
+              else if (bright > 191) result += ".";
+              else if (bright > 159) result += ":";
+              else if (bright > 127) result += "-";
+              else if (bright > 95) result += "=";
+              else if (bright > 63) result += "+";
+              else if (bright > 31) result += "*";
+              else result += "#";
+            }
+            result += "\n";
+          }
+          document.getElementById("out").innerText = result;
+        };
+        img.src = ev.target.result;
+      };
+      reader.readAsDataURL(e.target.files[0]);
+    };
+    // Want to tweak the output width? It's buried on line 3 of the
+    // handler. Change the character ramp? Recompute eight thresholds.
+    // Reuse the ASCII conversion for a webcam frame? Impossible —
+    // it's welded to the file input.
+  </script>
+</body>
+</html>

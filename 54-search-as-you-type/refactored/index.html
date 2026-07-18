@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Search (refactored)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 480px; margin: 40px auto; }
+    input { width: 100%; font-size: 18px; padding: 8px; box-sizing: border-box; }
+    li { padding: 4px 0; }
+    #status { color: #888; font-size: 13px; min-height: 1em; }
+  </style>
+</head>
+<body>
+  <h1>Fruit search</h1>
+  <input id="q" placeholder="type 'ba' then quickly 'ban'...">
+  <div id="status"></div>
+  <ul id="results"></ul>
+
+  <script>
+    // Inline copies of this project's latest.js and project 28's
+    // debounce — file:// pages can't import modules, so the tested
+    // originals live next door and these are verbatim copies.
+
+    // --- from refactored/latest.js (tests in latest.test.js) -------
+    const STALE = Symbol('stale');
+    function makeLatestOnly(fn) {
+      let newestTicket = 0;
+      return async (...args) => {
+        const ticket = ++newestTicket;
+        try {
+          const result = await fn(...args);
+          return ticket === newestTicket ? result : STALE;
+        } catch (err) {
+          if (ticket === newestTicket) throw err;
+          return STALE;
+        }
+      };
+    }
+
+    // --- from project 28 (28-debounce-throttle) --------------------
+    function debounce(fn, waitMs) {
+      let timer;
+      return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => fn(...args), waitMs);
+      };
+    }
+
+    // ============ THE FAKE API (unchanged from the original) ======
+    const FRUITS = ["apple", "apricot", "banana", "blackberry", "blueberry",
+      "cherry", "date", "fig", "grape", "guava", "kiwi", "lemon", "lime",
+      "mango", "melon", "orange", "papaya", "peach", "pear", "pineapple",
+      "plum", "raspberry", "strawberry", "watermelon"];
+    let requestCount = 0;
+
+    function searchApi(query) {
+      requestCount++;
+      const delay = Math.max(800 - query.length * 150 + Math.random() * 100, 50);
+      return new Promise((resolve) =>
+        setTimeout(() => resolve(FRUITS.filter((f) => f.includes(query))), delay));
+    }
+
+    // ============ WIRING: debounce + latest-only ===================
+    // Two tools, two different jobs:
+    //   debounce     -> don't even ASK until typing pauses (fewer requests)
+    //   latestOnly   -> whatever still comes back out of order CAN'T
+    //                   paint the screen (correctness)
+    // (With a real fetch you'd also pass an AbortController signal so
+    //  the network stops doing abandoned work — see the README.)
+    const search = makeLatestOnly(searchApi);
+
+    async function runSearch(query) {
+      setStatus('searching…');
+      const results = await search(query);
+      if (results === STALE) return; // an older query lost the race — ignore
+      render(results);
+      setStatus(`${requestCount} requests sent`);
+    }
+
+    const debouncedSearch = debounce(runSearch, 250);
+
+    document.getElementById('q').oninput = function () {
+      const query = this.value.trim();
+      if (!query) { render([]); setStatus(''); return; }
+      setStatus('…'); // loading is a visible state, distinct from "no results"
+      debouncedSearch(query);
+    };
+
+    // ============ RENDERING ========================================
+    function render(results) {
+      const ul = document.getElementById('results');
+      ul.innerHTML = '';
+      if (results.length === 0 && document.getElementById('q').value.trim()) {
+        const li = document.createElement('li');
+        li.textContent = 'No results';
+        ul.appendChild(li);
+        return;
+      }
+      for (const fruit of results) {
+        const li = document.createElement('li');
+        li.textContent = fruit; // textContent, not innerHTML (project 35)
+        ul.appendChild(li);
+      }
+    }
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+  </script>
+</body>
+</html>

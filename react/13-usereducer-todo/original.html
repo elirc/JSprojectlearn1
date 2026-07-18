@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 13 — sprawling setState logic (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; }
+          li.done span { text-decoration: line-through; color: #999; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // A todo app where every UPDATE RULE lives inside some handler,
+    // wherever the button happened to be.
+    function App() {
+      const [todos, setTodos] = useState([]);
+      const [draft, setDraft] = useState('');
+      const [nextId, setNextId] = useState(1);
+
+      function handleAdd() {
+        if (draft.trim() === '') return;
+        setTodos([...todos, { id: nextId, text: draft.trim(), done: false }]);
+        setNextId(nextId + 1);
+        setDraft('');
+      }
+
+      function handleToggle(id) {
+        setTodos(todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t)));
+      }
+
+      function handleDelete(id) {
+        setTodos(todos.filter((t) => t.id !== id));
+      }
+
+      function handleClearDone() {
+        setTodos(todos.filter((t) => !t.done));
+      }
+
+      function handleToggleAll() {
+        // business rule buried in a click handler: "if any are not
+        // done, mark all done; else mark all not-done"
+        const anyNotDone = todos.some((t) => !t.done);
+        setTodos(todos.map((t) => ({ ...t, done: anyNotDone })));
+      }
+
+      return (
+        <div>
+          <h1>Todos</h1>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && handleAdd()}
+                 placeholder="what needs doing?" />
+          <button onClick={handleAdd}>add</button>
+          <button onClick={handleToggleAll}>toggle all</button>
+          <button onClick={handleClearDone}>clear done</button>
+          <ul>
+            {todos.map((t) => (
+              <li key={t.id} className={t.done ? 'done' : ''}>
+                <span onClick={() => handleToggle(t.id)}>{t.text}</span>{' '}
+                <button onClick={() => handleDelete(t.id)}>x</button>
+              </li>
+            ))}
+          </ul>
+          {/* The rules of this app — what add/toggle/clear MEAN — are
+              smeared across five handlers inside a component. To test
+              "toggle all" you must render the UI and click buttons.
+              And handleAdd reads `todos`, `nextId`, `draft` from the
+              render snapshot — fine today, stale-closure bait the
+              moment any of it moves into a callback (project 11). */}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

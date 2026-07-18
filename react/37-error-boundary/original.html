@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 37 — one crash, white screen (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .widget { border: 1px solid #ccc; border-radius: 8px; padding: 12px; margin: 8px 0; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // A dashboard of independent widgets. One of them has a bug that
+    // only fires on certain data (the classic "cannot read properties
+    // of undefined").
+    function WeatherWidget() {
+      return <div className="widget">☀️ 22°C, sunny</div>;
+    }
+
+    function StockWidget({ portfolio }) {
+      // The bug: assumes portfolio.positions exists. For SOME users
+      // (empty portfolio), it's undefined.
+      return (
+        <div className="widget">
+          📈 top holding: {portfolio.positions[0].symbol}
+        </div>
+      );
+    }
+
+    function NewsWidget() {
+      return <div className="widget">📰 Nothing bad happened today.</div>;
+    }
+
+    function App() {
+      const [portfolio, setPortfolio] = useState({
+        positions: [{ symbol: 'ACME' }],
+      });
+
+      return (
+        <div>
+          <h1>Dashboard</h1>
+          <button onClick={() => setPortfolio({})}>
+            simulate the empty-portfolio user
+          </button>
+          <WeatherWidget />
+          <StockWidget portfolio={portfolio} />
+          <NewsWidget />
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Click the button. The stock widget throws during render —
+            and React unmounts THE ENTIRE TREE. Weather: gone. News:
+            gone. The user gets a blank white page because one widget
+            out of three hit bad data. (That's React's deliberate
+            default: a component that throws mid-render can't be
+            trusted to show correct UI, and with no boundary to catch
+            it, the failure propagates to the root.)
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

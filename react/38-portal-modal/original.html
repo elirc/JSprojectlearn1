@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 38 — inline modal (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+    /* The sidebar: a perfectly reasonable card... with the two CSS
+       properties that break every inline modal: */
+    .sidebar {
+      border: 1px solid #ccc; border-radius: 8px; padding: 12px;
+      overflow: hidden;          /* clips children to its box */
+      transform: translateX(0);  /* creates a containing block —
+                                    position:fixed children now anchor
+                                    to the SIDEBAR, not the viewport */
+      position: relative; z-index: 1;
+    }
+    .header { position: relative; z-index: 10; background: #36c; color: #fff;
+              padding: 10px; border-radius: 8px; margin-bottom: 10px; }
+    .modal-backdrop {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .modal { background: #fff; border-radius: 8px; padding: 20px; width: 280px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // The modal renders WHERE THE BUTTON IS — deep inside the
+    // sidebar's DOM. Its position:fixed styles say "cover the
+    // viewport"... but CSS has other ideas about children of
+    // transformed/overflowed/z-indexed ancestors.
+    function DeleteAccountButton() {
+      const [open, setOpen] = useState(false);
+
+      return (
+        <span>
+          <button onClick={() => setOpen(true)}>Delete account…</button>
+          {open && (
+            <div className="modal-backdrop" onClick={() => setOpen(false)}>
+              <div className="modal" onClick={(e) => e.stopPropagation()}>
+                <h3>Really delete?</h3>
+                <button onClick={() => setOpen(false)}>cancel</button>{' '}
+                <button style={{ color: '#c33' }}>DELETE</button>
+              </div>
+            </div>
+          )}
+        </span>
+      );
+    }
+
+    function App() {
+      return (
+        <div>
+          <div className="header">App header (z-index: 10)</div>
+          <h1>Settings</h1>
+          <div className="sidebar">
+            <p>Danger zone (this card has overflow:hidden + a transform)</p>
+            <DeleteAccountButton />
+          </div>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Click "Delete account…": the "fullscreen" backdrop is
+            CLIPPED to the sidebar card (overflow:hidden), anchored to
+            it instead of the viewport (the transform made the sidebar
+            a containing block), and the blue header still floats
+            above the dim layer (ancestor z-index stacking). The
+            modal's CSS is fine — its POSITION IN THE DOM dooms it.
+            Modals fight their ancestors, and ancestors win.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

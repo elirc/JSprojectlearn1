@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 24 — useDebouncedValue (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    let searchCount = 0;
+    function searchApi(query) {
+      searchCount++;
+      return new Promise((resolve) =>
+        setTimeout(() => resolve(`${searchCount} searches so far — results for "${query}"`), 200),
+      );
+    }
+
+    // ==== THE HOOK ================================================
+    // React reframe: don't debounce the FUNCTION — debounce the
+    // VALUE. `debounced` trails `value` by `delayMs` of quiet. The
+    // effect's cleanup clears the pending timer whenever value
+    // changes — cleanup-before-rerun (project 18) IS the debounce.
+    function useDebouncedValue(value, delayMs) {
+      const [debounced, setDebounced] = useState(value);
+
+      useEffect(() => {
+        const id = setTimeout(() => setDebounced(value), delayMs);
+        return () => clearTimeout(id); // new keystroke -> old timer dies
+      }, [value, delayMs]);
+
+      return debounced;
+    }
+
+    function App() {
+      const [query, setQuery] = useState('');
+      const debouncedQuery = useDebouncedValue(query, 500);
+      const [results, setResults] = useState('');
+
+      // Downstream, debouncedQuery is just... a value. Normal effect
+      // rules apply, including the race guard (project 19):
+      useEffect(() => {
+        if (debouncedQuery === '') { setResults(''); return; }
+        let stale = false;
+        searchApi(debouncedQuery).then((r) => { if (!stale) setResults(r); });
+        return () => { stale = true; };
+      }, [debouncedQuery]);
+
+      return (
+        <div>
+          <h1>Search</h1>
+          <input value={query} onChange={(e) => setQuery(e.target.value)}
+                 placeholder="type 5 letters, count the searches" />
+          <p>box: {query || '(empty)'} · searching for: {debouncedQuery || '(nothing yet)'}</p>
+          <p>{results}</p>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Type "react" quickly: ONE search, for the final string.
+            The input stays instant (it renders from `query`); only
+            the expensive work waits for quiet.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

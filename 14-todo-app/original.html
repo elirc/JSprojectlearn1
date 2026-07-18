@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Todo (original)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 40px auto; }
+    li.done span { text-decoration: line-through; color: #999; }
+    li button { margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Todos</h1>
+  <input id="newTodo" placeholder="What needs doing?">
+  <button onclick="addTodo()">Add</button>
+  <ul id="list"></ul>
+  <p id="counter">0 items</p>
+
+  <script>
+    // Where is the list of todos stored? ...in the DOM itself.
+    // The <ul> IS the data. Every feature reads and writes HTML.
+
+    function addTodo() {
+      var input = document.getElementById("newTodo");
+      if (input.value == "") return;
+
+      var li = document.createElement("li");
+      var span = document.createElement("span");
+      span.innerText = input.value;
+      // toggling done = flipping a CSS class, by hand, right here
+      span.onclick = function () {
+        if (li.className == "done") {
+          li.className = "";
+        } else {
+          li.className = "done";
+        }
+        updateCounter();
+      };
+      var del = document.createElement("button");
+      del.innerText = "x";
+      del.onclick = function () {
+        li.parentNode.removeChild(li);
+        updateCounter(); // forget this ONCE anywhere and the counter lies
+      };
+      li.appendChild(span);
+      li.appendChild(del);
+      document.getElementById("list").appendChild(li);
+      input.value = "";
+      updateCounter();
+    }
+
+    // To count remaining todos we... query the DOM and read CSS classes.
+    function updateCounter() {
+      var lis = document.getElementsByTagName("li");
+      var remaining = 0;
+      for (var i = 0; i < lis.length; i++) {
+        if (lis[i].className != "done") remaining++;
+      }
+      document.getElementById("counter").innerText = remaining + " items";
+    }
+
+    // Now try to add: persistence (what do we save? the HTML?!),
+    // a "clear completed" button, filters (all/active/done), undo...
+    // Every feature must re-derive the data FROM the page and keep
+    // every other feature's DOM patches consistent. This is why the
+    // counter needs to be manually poked from three places already.
+  </script>
+</body>
+</html>

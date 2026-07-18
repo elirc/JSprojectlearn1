@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Kanban (refactored)</title>
+  <style>
+    body { font-family: sans-serif; padding: 24px; }
+    #board { display: flex; gap: 16px; }
+    .col { background: #f0f0f0; border-radius: 6px; padding: 8px; width: 200px; min-height: 240px; }
+    .col.drag-over { background: #dbe9ff; }
+    .card { background: white; border: 1px solid #ccc; border-radius: 4px;
+            padding: 8px; margin: 6px 0; cursor: grab; }
+    .card.dragging { opacity: 0.4; }
+    h2 { font-size: 15px; margin: 4px; }
+    .add { width: 100%; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <div id="board"></div>
+
+  <script>
+    // --- inline copy of refactored/board.js (tested in board.test.js;
+    //     file:// pages can't import modules) ------------------------
+    function createBoard(columns) {
+      return {
+        columns: columns.map(({ id, title }) => ({ id, title, cardIds: [] })),
+        cards: {},
+        nextId: 1,
+      };
+    }
+
+    function addCard(board, columnId, text) {
+      const column = board.columns.find((c) => c.id === columnId);
+      if (!column) throw new Error(`No such column: ${columnId}`);
+      const id = `card-${board.nextId}`;
+      return {
+        ...board,
+        nextId: board.nextId + 1,
+        cards: { ...board.cards, [id]: { id, text } },
+        columns: board.columns.map((c) =>
+          c === column ? { ...c, cardIds: [...c.cardIds, id] } : c),
+      };
+    }
+
+    function moveCard(board, cardId, toColumnId, toIndex) {
+      const from = board.columns.find((c) => c.cardIds.includes(cardId));
+      const to = board.columns.find((c) => c.id === toColumnId);
+      if (!from || !to) return board;
+
+      const fromIndex = from.cardIds.indexOf(cardId);
+      let insertAt = toIndex;
+      if (from === to && fromIndex < toIndex) insertAt -= 1;
+
+      const withoutCard = from.cardIds.filter((id) => id !== cardId);
+      return {
+        ...board,
+        columns: board.columns.map((c) => {
+          if (c === from && c === to) {
+            const ids = [...withoutCard];
+            ids.splice(insertAt, 0, cardId);
+            return { ...c, cardIds: ids };
+          }
+          if (c === from) return { ...c, cardIds: withoutCard };
+          if (c === to) {
+            const ids = [...c.cardIds];
+            ids.splice(insertAt, 0, cardId);
+            return { ...c, cardIds: ids };
+          }
+          return c;
+        }),
+      };
+    }
+
+    function serialize(board) { return JSON.stringify(board); }
+
+    function deserialize(text, fallback) {
+      try {
+        const b = JSON.parse(text);
+        if (!Array.isArray(b?.columns) || typeof b?.cards !== 'object') return fallback;
+        return {
+          ...b,
+          columns: b.columns.map((c) => ({
+            ...c,
+            cardIds: c.cardIds.filter((id) => id in b.cards),
+          })),
+        };
+      } catch {
+        return fallback;
+      }
+    }
+
+    // ============ STATE ============================================
+    const STORAGE_KEY = 'kanban-v1';
+    const starter = (() => {
+      let b = createBoard([
+        { id: 'todo', title: 'Todo' },
+        { id: 'doing', title: 'Doing' },
+        { id: 'done', title: 'Done' },
+      ]);
+      b = addCard(b, 'todo', 'design the logo');
+      b = addCard(b, 'todo', 'write the pitch');
+      b = addCard(b, 'doing', 'build the site');
+      return b;
+    })();
+    let board = deserialize(localStorage.getItem(STORAGE_KEY), starter);
+
+    function commit(nextBoard) {
+      board = nextBoard;
+      localStorage.setItem(STORAGE_KEY, serialize(board));
+      render(); // one path: state -> save -> pixels. Refresh-proof.
+    }
+
+    // ============ RENDERING ========================================
+    function render() {
+      const root = document.getElementById('board');
+      root.innerHTML = '';
+      for (const col of board.columns) {
+        const colEl = document.createElement('div');
+        colEl.className = 'col';
+
+        const h2 = document.createElement('h2');
+        h2.textContent = `${col.title} (${col.cardIds.length})`; // counts: free, and never stale
+        colEl.appendChild(h2);
+
+        col.cardIds.forEach((cardId, index) => {
+          const cardEl = document.createElement('div');
+          cardEl.className = 'card';
+          cardEl.draggable = true;
+          cardEl.textContent = board.cards[cardId].text;
+
+          cardEl.addEventListener('dragstart', (e) => {
+            // The payload is the card's ID — data, not a DOM node.
+            e.dataTransfer.setData('text/plain', cardId);
+            e.dataTransfer.effectAllowed = 'move';
+            cardEl.classList.add('dragging');
+          });
+          cardEl.addEventListener('dragend', () => cardEl.classList.remove('dragging'));
+          // remember our index so drops can compute a position
+          cardEl.dataset.index = index;
+          colEl.appendChild(cardEl);
+        });
+
+        const input = document.createElement('input');
+        input.className = 'add';
+        input.placeholder = '+ add card';
+        input.onkeydown = (e) => {
+          if (e.key === 'Enter' && input.value.trim()) {
+            commit(addCard(board, col.id, input.value.trim()));
+          }
+        };
+        colEl.appendChild(input);
+
+        // dragover MUST preventDefault — the browser's default for a
+        // drag is "this is not a drop target"; preventing it is how
+        // you OPT IN to receiving drops. (The original copied this
+        // line without knowing that.)
+        colEl.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          colEl.classList.add('drag-over');
+        });
+        colEl.addEventListener('dragleave', () => colEl.classList.remove('drag-over'));
+
+        colEl.addEventListener('drop', (e) => {
+          e.preventDefault();
+          colEl.classList.remove('drag-over');
+          const cardId = e.dataTransfer.getData('text/plain');
+          // Drop position: count cards above the drop point.
+          const cards = [...colEl.querySelectorAll('.card')];
+          const below = cards.filter((el) =>
+            e.clientY < el.getBoundingClientRect().top + el.offsetHeight / 2);
+          const toIndex = below.length > 0
+            ? Number(below[0].dataset.index)
+            : col.cardIds.length;
+          // The DROP HANDLER decides nothing — it reads the gesture
+          // and delegates to the tested pure function:
+          commit(moveCard(board, cardId, col.id, toIndex));
+        });
+
+        root.appendChild(colEl);
+      }
+    }
+
+    render();
+  </script>
+</body>
+</html>

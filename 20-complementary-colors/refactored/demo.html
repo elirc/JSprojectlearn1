@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Palette demo</title>
+  <style>
+    body { font-family: sans-serif; max-width: 500px; margin: 40px auto; }
+    .row { display: flex; align-items: center; gap: 8px; margin: 12px 0; }
+    .swatch { width: 70px; height: 70px; border-radius: 8px; border: 1px solid #ccc;
+              display: flex; align-items: end; justify-content: center;
+              font-size: 11px; padding-bottom: 4px; color: #000; text-shadow: 0 0 3px #fff; }
+    h3 { margin: 20px 0 0; }
+  </style>
+</head>
+<body>
+  <h1>Palette generator</h1>
+  <p>Pick a base color: <input type="color" id="base" value="#3366cc"></p>
+  <h3>Complementary</h3><div class="row" id="complementary"></div>
+  <h3>Triadic</h3><div class="row" id="triadic"></div>
+  <h3>Analogous</h3><div class="row" id="analogous"></div>
+
+  <script>
+    // NOTE: this demo inlines copies of the project 19 + 20 functions,
+    // because browsers refuse `import` on file:// pages. In a real
+    // project a bundler or dev server removes this duplication —
+    // palette.js (imported and unit-tested in Node) is the real code.
+    function normalizeHue(hue) { return ((hue % 360) + 360) % 360; }
+
+    function hsvToRgb({ h, s, v }) {
+      const hue = normalizeHue(h);
+      const chroma = v * s;
+      const hPrime = hue / 60;
+      const x = chroma * (1 - Math.abs((hPrime % 2) - 1));
+      const sector = Math.floor(hPrime) % 6;
+      const [r1, g1, b1] = [
+        [chroma, x, 0], [x, chroma, 0], [0, chroma, x],
+        [0, x, chroma], [x, 0, chroma], [chroma, 0, x],
+      ][sector];
+      const m = v - chroma;
+      return { r: Math.round((r1 + m) * 255), g: Math.round((g1 + m) * 255), b: Math.round((b1 + m) * 255) };
+    }
+
+    function rgbToHsv({ r, g, b }) {
+      const rN = r / 255, gN = g / 255, bN = b / 255;
+      const max = Math.max(rN, gN, bN), min = Math.min(rN, gN, bN);
+      const delta = max - min;
+      let h;
+      if (delta === 0) h = 0;
+      else if (max === rN) h = 60 * (((gN - bN) / delta) % 6);
+      else if (max === gN) h = 60 * ((bN - rN) / delta + 2);
+      else h = 60 * ((rN - gN) / delta + 4);
+      return { h: normalizeHue(h), s: max === 0 ? 0 : delta / max, v: max };
+    }
+
+    function rgbToHex({ r, g, b }) {
+      const toHex = (n) => n.toString(16).padStart(2, '0');
+      return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+
+    function hexToRgb(hex) {
+      const value = parseInt(hex.slice(1), 16);
+      return { r: (value >> 16) & 255, g: (value >> 8) & 255, b: value & 255 };
+    }
+
+    function rotateHue(hex, degrees) {
+      const { h, s, v } = rgbToHsv(hexToRgb(hex));
+      return rgbToHex(hsvToRgb({ h: h + degrees, s, v }));
+    }
+
+    const PALETTES = {
+      complementary: (hex) => [hex, rotateHue(hex, 180)],
+      triadic: (hex) => [hex, rotateHue(hex, 120), rotateHue(hex, 240)],
+      analogous: (hex) => [rotateHue(hex, -30), hex, rotateHue(hex, 30)],
+    };
+
+    function render(baseHex) {
+      for (const [name, makePalette] of Object.entries(PALETTES)) {
+        const row = document.getElementById(name);
+        row.innerHTML = '';
+        for (const color of makePalette(baseHex)) {
+          const swatch = document.createElement('div');
+          swatch.className = 'swatch';
+          swatch.style.background = color;
+          swatch.textContent = color;
+          row.appendChild(swatch);
+        }
+      }
+    }
+
+    const input = document.getElementById('base');
+    input.oninput = () => render(input.value);
+    render(input.value);
+  </script>
+</body>
+</html>

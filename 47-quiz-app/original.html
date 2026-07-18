@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Quiz (original)</title>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; } </style>
+</head>
+<body>
+  <h1>JS Quiz</h1>
+  <div id="quiz"></div>
+
+  <script>
+    // Each question is a hand-built blob of HTML with its own handler
+    // wiring. Question 3 was pasted from question 2, which was pasted
+    // from question 1. The quiz IS the DOM (project 14's sin, again).
+    var score = 0;
+
+    function showQuestion1() {
+      document.getElementById("quiz").innerHTML =
+        "<p>1. What does === check?</p>" +
+        "<button onclick=\"answer1(true)\">value AND type</button>" +
+        "<button onclick=\"answer1(false)\">just value</button>";
+    }
+    function answer1(correct) {
+      if (correct) score++;
+      showQuestion2();
+    }
+
+    function showQuestion2() {
+      document.getElementById("quiz").innerHTML =
+        "<p>2. What is [1,2] + [3]?</p>" +
+        "<button onclick=\"answer2(false)\">[1,2,3]</button>" +
+        "<button onclick=\"answer2(true)\">the string '1,23'</button>" +
+        "<button onclick=\"answer2(false)\">an error</button>";
+    }
+    function answer2(correct) {
+      if (correct) score++;
+      showQuestion3();
+    }
+
+    function showQuestion3() {
+      document.getElementById("quiz").innerHTML =
+        "<p>3. Which is NOT falsy?</p>" +
+        "<button onclick=\"answer3(false)\">0</button>" +
+        "<button onclick=\"answer3(true)\">'0'</button>" +
+        "<button onclick=\"answer3(false)\">''</button>";
+    }
+    function answer3(correct) {
+      if (correct) score++;
+      document.getElementById("quiz").innerHTML =
+        "<p>Done! Score: " + score + "/3</p>";
+      // want a restart button? another blob. want to shuffle
+      // questions? impossible — the ORDER is hardcoded in the call
+      // chain answer1 -> showQuestion2 -> answer2 -> showQuestion3.
+    }
+
+    showQuestion1();
+    // Adding question 4 means: write showQuestion4 + answer4, then
+    // EDIT answer3 to call it instead of ending. The content, the
+    // flow, and the rendering are all the same tangled thing. Also
+    // the onclick attributes leak answers: open devtools, read
+    // which button says "true". Cheating is view-source.
+  </script>
+</body>
+</html>

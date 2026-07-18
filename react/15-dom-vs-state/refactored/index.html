@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 15 — state-driven accordion (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 520px; margin: 40px auto; }
+    .section { border: 1px solid #ccc; border-radius: 8px; margin: 8px 0; }
+    .section h3 { margin: 0; padding: 10px; cursor: pointer; background: #f4f4f4; }
+    .section .body { padding: 10px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    const SECTIONS = [
+      { id: 'what', title: 'What is this?', body: 'A FAQ.' },
+      { id: 'sky', title: 'Why is the sky blue?', body: 'Rayleigh scattering.' },
+      { id: 'tabs', title: 'Tabs or spaces?', body: 'Yes.' },
+    ];
+
+    // Stateless: collapsed-ness arrives as a prop; clicks are
+    // reported up. The className is COMPUTED from props — rendering
+    // as a function of state, never a poke at the DOM.
+    function Section({ title, collapsed, onToggle, children }) {
+      return (
+        <div className="section">
+          <h3 onClick={onToggle}>{collapsed ? '▸' : '▾'} {title}</h3>
+          {!collapsed && <div className="body">{children}</div>}
+        </div>
+      );
+    }
+
+    function App() {
+      // ONE piece of state React can see: which sections are collapsed.
+      const [collapsedIds, setCollapsedIds] = useState(new Set());
+
+      function toggle(id) {
+        setCollapsedIds((current) => {
+          const next = new Set(current);
+          next.has(id) ? next.delete(id) : next.add(id);
+          return next;
+        });
+      }
+
+      // Because the state is DATA, whole-app features are one-liners:
+      const openCount = SECTIONS.length - collapsedIds.size;
+
+      return (
+        <div>
+          <h1>FAQ</h1>
+          <button onClick={() => setCollapsedIds(new Set(SECTIONS.map((s) => s.id)))}>
+            collapse all
+          </button>{' '}
+          <button onClick={() => setCollapsedIds(new Set())}>expand all</button>
+          <p>{openCount} of {SECTIONS.length} open</p>
+
+          {SECTIONS.map((section) => (
+            <Section
+              key={section.id}
+              title={section.title}
+              collapsed={collapsedIds.has(section.id)}
+              onToggle={() => toggle(section.id)}
+            >
+              {section.body}
+            </Section>
+          ))}
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Collapse a section and force any re-render you like — the
+            collapsed-ness survives, because it lives in React state,
+            not in a DOM node React might recycle. "Collapse all",
+            "expand all", and the live count each cost one line.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

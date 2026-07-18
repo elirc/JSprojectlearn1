@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 06 — slot-prop explosion (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+    .panel { border: 1px solid #ccc; border-radius: 8px; margin: 12px 0; }
+    .panel-head { background: #f4f4f4; padding: 8px 12px; border-bottom: 1px solid #ccc; font-weight: bold; }
+    .panel-body { padding: 12px; }
+    .panel-foot { padding: 8px 12px; border-top: 1px solid #ccc; color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    // A Panel component where every piece of content arrives as a
+    // prop. It started with `title` and `text`. Then real needs hit:
+    function Panel({
+      title,
+      titleIcon,          // v2: "can we put an icon in the title?"
+      text,
+      boldFirstWord,      // v3: "make the first word bold" (?!)
+      footerText,
+      footerLinkText,     // v4: "the footer needs a link sometimes"
+      footerLinkHref,
+      showFooter,         // v5: "not every panel has a footer"
+    }) {
+      let body = text;
+      if (boldFirstWord) {
+        const [first, ...rest] = text.split(' ');
+        body = <span><strong>{first}</strong> {rest.join(' ')}</span>;
+      }
+      return (
+        <div className="panel">
+          <div className="panel-head">
+            {titleIcon} {title}
+          </div>
+          <div className="panel-body">{body}</div>
+          {showFooter && (
+            <div className="panel-foot">
+              {footerText}
+              {footerLinkText && <a href={footerLinkHref}> {footerLinkText}</a>}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    function App() {
+      return (
+        <div>
+          <h1>Panels</h1>
+          <Panel title="Welcome" titleIcon="👋" text="Glad you're here." />
+          <Panel
+            title="Warning"
+            titleIcon="⚠️"
+            text="Disk is nearly full."
+            boldFirstWord
+            showFooter
+            footerText="See"
+            footerLinkText="storage settings"
+            footerLinkHref="#"
+          />
+          {/* Next request: "two buttons in the footer" — that's
+              footerButton1Text, footerButton1OnClick, footerButton2Text...
+              The component is becoming a remote control for markup it
+              refuses to just let you WRITE. Each content shape needs a
+              new prop + a new branch inside Panel. */}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

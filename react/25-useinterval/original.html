@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 25 — timers vs hooks (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // A slideshow that auto-advances, with adjustable speed.
+    // Two attempts, both broken differently.
+    const SLIDES = ['🌅 sunrise', '🏔 mountain', '🌊 ocean', '🌲 forest'];
+
+    function App() {
+      const [index, setIndex] = useState(0);
+      const [delay, setDelay] = useState(1000);
+      const [attempt, setAttempt] = useState('A');
+
+      // ---- Attempt A: empty deps + naive callback ----
+      useEffect(() => {
+        if (attempt !== 'A') return;
+        const id = setInterval(() => {
+          setIndex(index + 1 >= SLIDES.length ? 0 : index + 1);
+          // stale closure (project 11): `index` is frozen at the
+          // value from when this effect ran. The slideshow flips
+          // between slide 0 and slide 1 forever.
+        }, delay);
+        return () => clearInterval(id);
+      }, [attempt]);
+      // Also: change the speed slider — nothing happens. `delay`
+      // isn't in the deps, so the interval keeps its old speed.
+
+      // ---- Attempt B: "honest deps" ----
+      useEffect(() => {
+        if (attempt !== 'B') return;
+        const id = setInterval(() => {
+          setIndex((i) => (i + 1 >= SLIDES.length ? 0 : i + 1));
+        }, delay);
+        return () => clearInterval(id);
+      }, [attempt, delay, index]);
+      // updater fixed the staleness... but `index` in the deps means
+      // the interval is TORN DOWN AND RESTARTED every slide change —
+      // i.e., every tick. An interval that never survives one full
+      // period is really a chain of setTimeouts, and any tick-drift
+      // logic, pause behavior, or "already elapsed" time resets with
+      // it. It works-ish here, and becomes a mess the moment the
+      // callback does anything time-sensitive.
+
+      return (
+        <div>
+          <h1>Slideshow</h1>
+          <h2 style={{ fontSize: 40 }}>{SLIDES[index]}</h2>
+          <p>
+            speed: {delay}ms
+            <input type="range" min="200" max="2000" step="100" value={delay}
+                   onChange={(e) => setDelay(Number(e.target.value))} />
+          </p>
+          <p>
+            attempt:
+            <button onClick={() => setAttempt('A')} disabled={attempt === 'A'}>A (stale)</button>
+            <button onClick={() => setAttempt('B')} disabled={attempt === 'B'}>B (restarts)</button>
+          </p>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            A: watch it flip 0↔1 forever; speed slider dead.
+            B: works, but the interval restarts every tick.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

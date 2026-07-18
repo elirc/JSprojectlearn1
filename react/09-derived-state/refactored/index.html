@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 09 — derive during render (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    const PRODUCTS = [
+      { id: 1, name: 'Keyboard', price: 89 },
+      { id: 2, name: 'Mouse', price: 25 },
+      { id: 3, name: 'Monitor', price: 340 },
+      { id: 4, name: 'Mousepad', price: 12 },
+    ];
+
+    function App() {
+      // State = ONLY the user's inputs. Two values. That's the whole
+      // state of this app.
+      const [query, setQuery] = useState('');
+      const [maxPrice, setMaxPrice] = useState(500);
+
+      // Everything else is COMPUTED, fresh, every render. Plain
+      // const — no useState, no useEffect, no sync, no staleness.
+      // It cannot be out of date, the same way a spreadsheet cell
+      // with a formula can't forget to recalculate.
+      const filtered = PRODUCTS.filter(
+        (p) =>
+          p.name.toLowerCase().includes(query.toLowerCase()) &&
+          p.price <= maxPrice,
+      );
+      const total = filtered.reduce((sum, p) => sum + p.price, 0);
+
+      return (
+        <div>
+          <h1>Products</h1>
+          <input placeholder="search..." value={query}
+                 onChange={(e) => setQuery(e.target.value)} />
+          <p>
+            Max price: {maxPrice}
+            <input type="range" min="10" max="500" value={maxPrice}
+                   onChange={(e) => setMaxPrice(Number(e.target.value))} />
+          </p>
+          <p>{filtered.length} products, total ${total}</p>
+          <ul>
+            {filtered.map((p) => <li key={p.id}>{p.name} — ${p.price}</li>)}
+          </ul>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            The slider works here — not because someone remembered to
+            update a sync effect, but because there IS no sync effect.
+            The filter reads maxPrice directly; render always uses
+            current values. (Worried about recomputing on every render?
+            Don't be, until it's measurably slow — then see project 27.)
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

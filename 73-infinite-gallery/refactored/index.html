@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Gallery (refactored)</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    #stats { position: fixed; top: 0; right: 0; background: #000; color: #0f0;
+             font: 12px monospace; padding: 6px; z-index: 9; }
+    .photo { display: flex; align-items: center; gap: 12px; height: 96px;
+             padding: 6px 12px; border-bottom: 1px solid #eee; box-sizing: border-box; }
+    .photo img { width: 120px; height: 80px; }
+    #sentinel { height: 1px; }
+    #loading { text-align: center; color: #888; padding: 12px; }
+  </style>
+</head>
+<body>
+  <div id="stats"></div>
+  <div id="top-pad"></div>
+  <div id="list"></div>
+  <div id="bottom-pad"></div>
+  <div id="sentinel"></div>
+  <div id="loading"></div>
+
+  <script>
+    // --- inline copy of refactored/window.js (tested in
+    //     window.test.js; file:// pages can't import modules) --------
+    function visibleRange({ scrollTop, viewportHeight, itemHeight, totalItems, overscan = 3 }) {
+      const first = Math.floor(scrollTop / itemHeight);
+      const visibleCount = Math.ceil(viewportHeight / itemHeight) + 1;
+      const start = Math.max(0, first - overscan);
+      const end = Math.min(totalItems, first + visibleCount + overscan);
+      return {
+        start, end,
+        topPadding: start * itemHeight,
+        bottomPadding: (totalItems - end) * itemHeight,
+      };
+    }
+
+    // ============ the same fake API ================================
+    const ITEM_HEIGHT = 96;
+    function imageUrl(i) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80">` +
+        `<rect width="120" height="80" fill="hsl(${(i * 47) % 360},70%,60%)"/>` +
+        `<text x="8" y="45" font-size="20" fill="#fff">#${i}</text></svg>`;
+      return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+    }
+    const fetchPage = (page) => new Promise((resolve) =>
+      setTimeout(() => resolve(Array.from({ length: 40 }, (_, i) => page * 40 + i)), 300));
+
+    // ============ STATE ============================================
+    let items = [];       // everything we know about
+    let nextPage = 0;
+    let inFlight = false; // the guard the original lacked
+
+    // ============ LOADING: IntersectionObserver ===================
+    // No scroll polling. The browser TELLS us when the sentinel (a
+    // 1px div under the list) approaches the viewport — rootMargin
+    // starts the fetch 600px early so the user never sees the edge.
+    const sentinel = document.getElementById('sentinel');
+    const observer = new IntersectionObserver(async (entries) => {
+      if (!entries[0].isIntersecting || inFlight) return; // one fetch at a time
+      inFlight = true;
+      document.getElementById('loading').textContent = 'loading…';
+      const page = await fetchPage(nextPage);
+      nextPage++;
+      items = items.concat(page);
+      inFlight = false;
+      document.getElementById('loading').textContent = '';
+      render();
+      // still intersecting after the new content? The observer
+      // fires again on the next intersection change — and if the
+      // sentinel is STILL visible (short first page), re-check:
+      observer.unobserve(sentinel);
+      observer.observe(sentinel);
+    }, { rootMargin: '600px' });
+    observer.observe(sentinel);
+
+    // ============ RENDERING: the window ============================
+    // Only the visible slice (plus overscan) EXISTS in the DOM;
+    // paddings impersonate the rest so the scrollbar stays honest.
+    // Watch the stats: ~13 nodes whether you've loaded 40 or 4000.
+    let renders = 0;
+    function render() {
+      const { start, end, topPadding, bottomPadding } = visibleRange({
+        scrollTop: window.scrollY,
+        viewportHeight: window.innerHeight,
+        itemHeight: ITEM_HEIGHT,
+        totalItems: items.length,
+      });
+
+      document.getElementById('top-pad').style.height = `${topPadding}px`;
+      document.getElementById('bottom-pad').style.height = `${bottomPadding}px`;
+
+      const list = document.getElementById('list');
+      list.innerHTML = '';
+      for (let i = start; i < end; i++) {
+        const div = document.createElement('div');
+        div.className = 'photo';
+        const img = document.createElement('img');
+        img.src = imageUrl(items[i]);
+        img.loading = 'lazy'; // belt & suspenders on a real network
+        const label = document.createElement('b');
+        label.textContent = `Photo #${items[i]}`;
+        div.append(img, label);
+        list.appendChild(div);
+      }
+
+      renders++;
+      document.getElementById('stats').textContent =
+        `${document.querySelectorAll('.photo').length} DOM nodes | ` +
+        `${items.length} items | ${renders} renders`;
+    }
+
+    // Scroll DOES need to update the window — but through rAF, so we
+    // render at most once per frame, exactly when the browser is
+    // about to paint (jank-free, and cheaper than any throttle
+    // number project 28 could have picked).
+    let scheduled = false;
+    window.addEventListener('scroll', () => {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(() => { scheduled = false; render(); });
+    }, { passive: true });
+
+    render();
+  </script>
+</body>
+</html>

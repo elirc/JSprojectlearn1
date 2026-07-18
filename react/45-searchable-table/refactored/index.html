@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 45 — derived pipeline table (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 640px; margin: 40px auto; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }
+    th { cursor: pointer; background: #f4f4f4; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    const PEOPLE = [
+      { name: 'Ada', role: 'Engineer', score: 97 },
+      { name: 'Grace', role: 'Admiral', score: 94 },
+      { name: 'Alan', role: 'Logician', score: 91 },
+      { name: 'Katherine', role: 'Calculator', score: 99 },
+      { name: 'Edsger', role: 'Curmudgeon', score: 88 },
+      { name: 'Barbara', role: 'Architect', score: 95 },
+      { name: 'Donald', role: 'Author', score: 93 },
+    ];
+
+    // js#26's utilities (sortBy: copy-then-sort, keyOf functions;
+    // chunk: pagination) — inlined here for file:// reasons, imported
+    // in a real project.
+    function sortBy(items, keyOf, { descending = false } = {}) {
+      const order = descending ? -1 : 1;
+      return [...items].sort((a, b) => {
+        const ka = keyOf(a), kb = keyOf(b);
+        return ka < kb ? -order : ka > kb ? order : 0;
+      });
+    }
+
+    const PAGE_SIZE = 3;
+
+    function App() {
+      // State = ONLY the user's choices. Three values, no copies.
+      const [query, setQuery] = useState('');
+      const [sort, setSort] = useState({ key: 'name', descending: false });
+      const [page, setPage] = useState(0);
+
+      // The pipeline, derived fresh each render (project 09):
+      // source -> filter -> sort -> clamp page -> slice. Reading it
+      // top to bottom IS the feature spec.
+      const filtered = PEOPLE.filter((p) =>
+        p.name.toLowerCase().includes(query.toLowerCase()));
+
+      const sorted = sortBy(filtered, (p) => p[sort.key], { descending: sort.descending });
+
+      const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
+      const currentPage = Math.min(page, totalPages - 1); // stale page? CLAMPED.
+      const visible = sorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE);
+
+      function handleSort(key) {
+        // same column: flip direction; new column: ascending
+        setSort((s) => ({ key, descending: s.key === key ? !s.descending : false }));
+      }
+
+      const arrow = (key) =>
+        sort.key === key ? (sort.descending ? ' ↓' : ' ↑') : '';
+
+      return (
+        <div>
+          <h1>People</h1>
+          <input placeholder="search names..." value={query}
+                 onChange={(e) => { setQuery(e.target.value); setPage(0); }} />
+          <table>
+            <thead>
+              <tr>
+                {['name', 'role', 'score'].map((key) => (
+                  <th key={key} onClick={() => handleSort(key)}>{key}{arrow(key)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((p) => (
+                <tr key={p.name}><td>{p.name}</td><td>{p.role}</td><td>{p.score}</td></tr>
+              ))}
+            </tbody>
+          </table>
+          <p>
+            <button disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>prev</button>
+            {' '}page {currentPage + 1} of {totalPages}{' '}
+            <button disabled={currentPage >= totalPages - 1} onClick={() => setPage(currentPage + 1)}>next</button>
+          </p>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            The original's stale-page bug is handled TWICE, on purpose:
+            searching resets the page (a UX decision, in the handler),
+            and the derivation CLAMPS the page into range (a safety
+            net, in the pipeline) — so no combination of inputs can
+            show wrong rows. Sorting got direction toggles for free
+            because sort is one small state object, not a side effect.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

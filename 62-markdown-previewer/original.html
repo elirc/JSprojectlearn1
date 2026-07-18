@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Markdown previewer (original)</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; }
+    textarea, #preview { flex: 1; padding: 16px; font-size: 15px; }
+    textarea { font-family: monospace; border: none; border-right: 1px solid #ccc; resize: none; }
+    #preview { overflow: auto; }
+  </style>
+</head>
+<body>
+  <textarea id="src"># Hello
+
+Type *markdown* on the left.
+
+**Now try this** (then read the comments):
+
+    <img src=x onerror="alert('xss')">
+</textarea>
+  <div id="preview"></div>
+
+  <script>
+    // "Markdown is easy — it's just find and replace."
+    function markdownToHtml(md) {
+      var html = md;
+
+      // Problem 1 — THE SECURITY HOLE: the input is never escaped,
+      // and the output goes into innerHTML. Any HTML the user types
+      // is EXECUTED. Paste <img src=x onerror="alert('xss')"> and
+      // it runs. In a real app this preview renders OTHER people's
+      // comments... and now everyone's session cookie is on pastebin.
+      // (Project 35 taught escape-by-default; this forgot.)
+
+      // Problem 2: regex-replace on the WHOLE document at once means
+      // no notion of context. These headings match mid-paragraph too:
+      html = html.replace(/^### (.*)$/gm, "<h3>$1</h3>");
+      html = html.replace(/^## (.*)$/gm, "<h2>$1</h2>");
+      html = html.replace(/^# (.*)$/gm, "<h1>$1</h1>");
+
+      // Problem 3: greedy-ish patterns interact. Bold must run
+      // before italic or **x** becomes <em><em>x</em></em>; nobody
+      // remembers WHY the order matters, so nobody dares change it.
+      html = html.replace(/\*\*(.*?)\*\*/g, "<b>$1</b>");
+      html = html.replace(/\*(.*?)\*/g, "<i>$1</i>");
+
+      // Problem 4: `code` spans are transformed LAST, so markdown
+      // inside backticks got processed anyway: `*not italic*` is
+      // italic. Code spans are supposed to be literal.
+      html = html.replace(/`(.*?)`/g, "<code>$1</code>");
+
+      // Problem 5: links — and the OTHER security hole. The URL is
+      // not vetted: [click](javascript:alert('gotcha')) makes a
+      // live javascript: link.
+      html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>');
+
+      // Problem 6: paragraphs are faked with <br>, so there are no
+      // real blocks — lists, code blocks, blockquotes can't exist.
+      html = html.replace(/\n/g, "<br>");
+
+      return html;
+    }
+
+    var src = document.getElementById("src");
+    function update() {
+      document.getElementById("preview").innerHTML = markdownToHtml(src.value);
+    }
+    src.oninput = update;
+    update();
+  </script>
+</body>
+</html>

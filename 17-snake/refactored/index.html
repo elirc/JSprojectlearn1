@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Snake (refactored)</title>
+  <style> body { text-align: center; font-family: sans-serif; }
+          canvas { border: 2px solid #333; } </style>
+</head>
+<body>
+  <h1>Snake</h1>
+  <p id="score"></p>
+  <canvas id="game" width="400" height="400"></canvas>
+  <p>Arrows to steer · Space to pause · R to restart</p>
+
+  <script>
+    // ======================= CONFIG ==============================
+    const GRID = 20;        // board is GRID x GRID cells
+    const CELL = 20;        // pixels per cell (canvas = GRID * CELL)
+    const TICK_MS = 120;
+
+    const DIRECTIONS = {
+      ArrowUp:    { x: 0, y: -1 },
+      ArrowDown:  { x: 0, y: 1 },
+      ArrowLeft:  { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 },
+    };
+
+    // ======================= GAME LOGIC ==========================
+    // One rule: nothing here touches the canvas or the DOM, and
+    // nothing MUTATES — step(state, direction) returns a NEW state.
+    // The old state is untouched (that's what makes replay/undo and
+    // the pause trivial).
+    // =============================================================
+    function newGame() {
+      const snake = [{ x: 10, y: 10 }];
+      return {
+        snake,
+        direction: { x: 1, y: 0 },
+        food: placeFood(snake),
+        score: 0,
+        status: 'running', // 'running' | 'paused' | 'dead'
+      };
+    }
+
+    function step(state, requestedDirection) {
+      if (state.status !== 'running') return state;
+
+      // Ignore reversals (can't turn back into your own neck).
+      // ONE check here replaces the original's per-key guards, and
+      // because we only apply direction changes here — once per tick —
+      // the "two quick keypresses" bug can't happen at all.
+      const direction = isReversal(requestedDirection, state.direction)
+        ? state.direction
+        : requestedDirection;
+
+      const head = {
+        x: state.snake[0].x + direction.x,
+        y: state.snake[0].y + direction.y,
+      };
+
+      if (hitsWall(head) || hitsSnake(head, state.snake)) {
+        return { ...state, direction, status: 'dead' };
+      }
+
+      const ate = head.x === state.food.x && head.y === state.food.y;
+      const snake = ate
+        ? [head, ...state.snake]                 // grow: keep the tail
+        : [head, ...state.snake.slice(0, -1)];   // move: drop the tail
+
+      return {
+        ...state,
+        snake,
+        direction,
+        food: ate ? placeFood(snake) : state.food,
+        score: ate ? state.score + 1 : state.score,
+      };
+    }
+
+    const isReversal = (a, b) => a.x === -b.x && a.y === -b.y;
+    const hitsWall = ({ x, y }) => x < 0 || x >= GRID || y < 0 || y >= GRID;
+    const hitsSnake = (head, snake) =>
+      snake.some((seg) => seg.x === head.x && seg.y === head.y);
+
+    /** Random empty cell — never on the snake (the original could!). */
+    function placeFood(snake) {
+      while (true) {
+        const food = {
+          x: Math.floor(Math.random() * GRID),
+          y: Math.floor(Math.random() * GRID),
+        };
+        if (!hitsSnake(food, snake)) return food;
+      }
+    }
+
+    // ======================= RENDERING ===========================
+    function render(ctx, state) {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, GRID * CELL, GRID * CELL);
+
+      ctx.fillStyle = '#c33';
+      drawCell(ctx, state.food);
+
+      ctx.fillStyle = '#2a2';
+      for (const segment of state.snake) drawCell(ctx, segment);
+
+      const label = { running: 'Score', paused: 'PAUSED — Score', dead: 'GAME OVER! Score' };
+      document.getElementById('score').textContent =
+        `${label[state.status]}: ${state.score}`;
+    }
+
+    function drawCell(ctx, { x, y }) {
+      ctx.fillRect(x * CELL, y * CELL, CELL - 1, CELL - 1);
+    }
+
+    // ======================= GAME LOOP ===========================
+    // The entire mutable world is these two variables.
+    let state = newGame();
+    let requestedDirection = state.direction;
+
+    document.addEventListener('keydown', (event) => {
+      if (event.key in DIRECTIONS) {
+        requestedDirection = DIRECTIONS[event.key]; // applied next tick
+      } else if (event.key === ' ') {
+        state = { ...state,
+          status: state.status === 'paused' ? 'running'
+                : state.status === 'running' ? 'paused' : state.status };
+      } else if (event.key.toLowerCase() === 'r') {
+        state = newGame();
+        requestedDirection = state.direction;
+      }
+    });
+
+    const ctx = document.getElementById('game').getContext('2d');
+    setInterval(() => {
+      state = step(state, requestedDirection);
+      render(ctx, state);
+    }, TICK_MS);
+  </script>
+</body>
+</html>

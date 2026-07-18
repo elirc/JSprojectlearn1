@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Virtual DOM (original): innerHTML re-render</title>
+  <style>
+    body { font-family: sans-serif; max-width: 560px; margin: 40px auto; }
+    li { padding: 2px 0; }
+    .done { text-decoration: line-through; color: #999; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // "Render as a function of state" (project 14) taken literally:
+    // rebuild ALL the HTML on every change. It's simple, and it's
+    // the technique projects 14-18 used happily. This project is
+    // about discovering its ceiling.
+    var state = {
+      draft: "",
+      items: [
+        { text: "buy milk", done: false },
+        { text: "ship v2", done: true },
+      ],
+    };
+
+    function render() {
+      var html = "<h1>Todos (" + state.items.length + ")</h1>";
+
+      // Problem 1: THE FOCUS KILLER. This input is destroyed and
+      // recreated on every render. Type one character: render()
+      // replaces the input, focus is gone, the cursor is gone, and
+      // (without the value= patch-up below) your text is gone.
+      // Try typing two letters in a row.
+      html += '<input id="draft" value="' + state.draft + '" placeholder="new todo...">';
+      html += "<button onclick='addItem()'>Add</button><ul>";
+
+      for (var i = 0; i < state.items.length; i++) {
+        var item = state.items[i];
+        // Problem 2: everything is string concatenation — item text
+        // goes straight into markup (project 35's XSS hole), and
+        // handlers must be GLOBAL functions named in strings.
+        html += '<li class="' + (item.done ? "done" : "") + '" onclick="toggle(' + i + ')">' +
+          item.text + "</li>";
+      }
+      html += "</ul>";
+
+      // Problem 3: nuke-and-pave. 2 todos or 2000, changing ONE
+      // checkbox rebuilds and re-parses every node. The browser
+      // throws away layout, listeners, scroll positions, selection —
+      // then rebuilds them. It's O(everything) per keystroke.
+      document.getElementById("app").innerHTML = html;
+
+      // Problem 4: the patch-up parade. Restore what the nuke
+      // destroyed — focus, cursor position... each one discovered as
+      // a bug report, each one glued back by hand:
+      var draft = document.getElementById("draft");
+      draft.focus();
+      draft.setSelectionRange(state.draft.length, state.draft.length);
+      draft.oninput = function (e) { state.draft = e.target.value; render(); };
+    }
+
+    function addItem() {
+      if (!state.draft) return;
+      state.items.push({ text: state.draft, done: false });
+      state.draft = "";
+      render();
+    }
+
+    function toggle(i) {
+      state.items[i].done = !state.items[i].done;
+      render();
+    }
+
+    render();
+  </script>
+</body>
+</html>

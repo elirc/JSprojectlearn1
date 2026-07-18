@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Gallery (original)</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; }
+    #stats { position: fixed; top: 0; right: 0; background: #000; color: #0f0;
+             font: 12px monospace; padding: 6px; z-index: 9; }
+    .photo { display: flex; align-items: center; gap: 12px; height: 96px;
+             padding: 6px 12px; border-bottom: 1px solid #eee; box-sizing: border-box; }
+    .photo img { width: 120px; height: 80px; }
+  </style>
+</head>
+<body>
+  <div id="stats"></div>
+  <div id="list"></div>
+
+  <script>
+    // A fake image API: 40 items per page, ~300ms latency. The
+    // "images" are generated SVGs so the demo is self-contained.
+    function imageUrl(i) {
+      var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80">' +
+        '<rect width="120" height="80" fill="hsl(' + (i * 47) % 360 + ',70%,60%)"/>' +
+        '<text x="8" y="45" font-size="20" fill="#fff">#' + i + '</text></svg>';
+      return 'data:image/svg+xml,' + encodeURIComponent(svg);
+    }
+    function fetchPage(page) {
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          var items = [];
+          for (var i = 0; i < 40; i++) items.push(page * 40 + i);
+          resolve(items);
+        }, 300);
+      });
+    }
+
+    var nextPage = 0;
+
+    function loadMore() {
+      fetchPage(nextPage).then(function (items) {
+        nextPage++;
+        var list = document.getElementById("list");
+        for (var i = 0; i < items.length; i++) {
+          var div = document.createElement("div");
+          div.className = "photo";
+          // Problem 1: every image loads EAGERLY the moment it's
+          // appended — including the 900 that are nowhere near the
+          // viewport. On a real API that's megabytes of wasted
+          // transfer (and on mobile, wasted battery and data).
+          div.innerHTML = '<img src="' + imageUrl(items[i]) + '"> <b>Photo #' + items[i] + "</b>";
+          list.appendChild(div);
+        }
+        updateStats();
+      });
+    }
+
+    // Problem 2: scroll events fire CONSTANTLY — dozens per second,
+    // every one running layout-forcing reads (scrollY, offsetHeight).
+    // Project 28 built throttle for this; but the real fix (below,
+    // in the refactor) is to not poll scroll at all.
+    var scrollEvents = 0;
+    window.onscroll = function () {
+      scrollEvents++;
+      updateStats();
+      if (window.scrollY + window.innerHeight > document.body.offsetHeight - 600) {
+        // Problem 3: NO in-flight guard. Every scroll tick inside
+        // the bottom zone starts ANOTHER fetch of the same page —
+        // scroll fast and pages arrive duplicated and out of order.
+        loadMore();
+      }
+    };
+
+    // Problem 4: the DOM grows forever. 25 pages in = 1000 .photo
+    // nodes = layout, paint, and memory costs that climb until the
+    // tab crawls. The screen fits ~8. Nothing ever leaves.
+    function updateStats() {
+      document.getElementById("stats").textContent =
+        document.querySelectorAll(".photo").length + " DOM nodes | " +
+        scrollEvents + " scroll events";
+    }
+
+    loadMore();
+  </script>
+</body>
+</html>

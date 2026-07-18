@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Memory match (original)</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; }
+    .card { display: inline-block; width: 60px; height: 60px; margin: 4px;
+            font-size: 36px; line-height: 60px; background: #36c; color: #36c;
+            border-radius: 8px; cursor: pointer; user-select: none; }
+    .card.up { background: #eee; color: #000; }
+  </style>
+</head>
+<body>
+  <h1>Memory</h1>
+  <p id="status">Find the pairs!</p>
+  <div id="board"></div>
+
+  <script>
+    // State = a pile of globals pointing at DOM ELEMENTS.
+    var firstCard = null;
+    var secondCard = null;
+    var matched = 0;
+
+    var emojis = ["🐈", "🐈", "🐕", "🐕", "🦊", "🦊", "🐸", "🐸"];
+    emojis.sort(function () { return Math.random() - 0.5; }); // "shuffle"
+    // (sort with a random comparator is a FAMOUSLY biased shuffle —
+    // project 11 used Fisher-Yates for a reason. It also technically
+    // breaks sort's contract. But it LOOKS shuffled, so it shipped.)
+
+    var board = document.getElementById("board");
+    for (var i = 0; i < emojis.length; i++) {
+      var card = document.createElement("div");
+      card.className = "card";
+      card.textContent = emojis[i];
+      card.onclick = makeHandler(card);
+      board.appendChild(card);
+    }
+
+    function makeHandler(card) {
+      return function () {
+        if (card.className == "card up") return; // already face up
+
+        card.className = "card up";
+
+        if (firstCard == null) {
+          firstCard = card;
+        } else {
+          secondCard = card;
+          if (firstCard.textContent == secondCard.textContent) {
+            matched += 2;
+            firstCard = null;
+            secondCard = null;
+            if (matched == emojis.length) {
+              document.getElementById("status").textContent = "You win!";
+            }
+          } else {
+            // flip back after a moment...
+            setTimeout(function () {
+              firstCard.className = "card";      // BUG WINDOW: during
+              secondCard.className = "card";     // these 800ms, clicks
+              firstCard = null;                  // still register!
+              secondCard = null;
+            }, 800);
+            // Click a THIRD card inside the window: firstCard/secondCard
+            // are still set, so the handler runs the "second card"
+            // branch AGAIN — comparing the new card against a card
+            // that's about to flip down, corrupting both. Fast
+            // clickers break this game every time. There's no concept
+            // of "the game is busy right now" — no phase.
+          }
+        }
+      };
+    }
+  </script>
+</body>
+</html>

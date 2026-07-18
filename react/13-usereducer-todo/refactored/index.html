@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 13 — useReducer (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; }
+          li.done span { text-decoration: line-through; color: #999; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useReducer, useState } = React;
+
+    // ==== RULES — a copy of reducer.js, which is unit-tested in Node
+    // (browsers can't import modules from file:// pages; a bundler
+    // would import it). Note: zero React below this comment.
+    const initialState = { todos: [], nextId: 1 };
+
+    function todosReducer(state, action) {
+      switch (action.type) {
+        case 'added': {
+          const text = action.text.trim();
+          if (text === '') return state;
+          return {
+            todos: [...state.todos, { id: state.nextId, text, done: false }],
+            nextId: state.nextId + 1,
+          };
+        }
+        case 'toggled':
+          return {
+            ...state,
+            todos: state.todos.map((t) =>
+              t.id === action.id ? { ...t, done: !t.done } : t,
+            ),
+          };
+        case 'deleted':
+          return { ...state, todos: state.todos.filter((t) => t.id !== action.id) };
+        case 'clearedDone':
+          return { ...state, todos: state.todos.filter((t) => !t.done) };
+        case 'toggledAll': {
+          const anyNotDone = state.todos.some((t) => !t.done);
+          return { ...state, todos: state.todos.map((t) => ({ ...t, done: anyNotDone })) };
+        }
+        default:
+          throw new Error(`Unknown action type: ${action.type}`);
+      }
+    }
+
+    // ==== UI — handlers just DESCRIBE what happened; the reducer
+    // decides what it means. The component holds no logic to test.
+    function App() {
+      const [state, dispatch] = useReducer(todosReducer, initialState);
+      const [draft, setDraft] = useState('');
+
+      function submitDraft() {
+        dispatch({ type: 'added', text: draft });
+        setDraft('');
+      }
+
+      return (
+        <div>
+          <h1>Todos</h1>
+          <input value={draft} onChange={(e) => setDraft(e.target.value)}
+                 onKeyDown={(e) => e.key === 'Enter' && submitDraft()}
+                 placeholder="what needs doing?" />
+          <button onClick={submitDraft}>add</button>
+          <button onClick={() => dispatch({ type: 'toggledAll' })}>toggle all</button>
+          <button onClick={() => dispatch({ type: 'clearedDone' })}>clear done</button>
+          <ul>
+            {state.todos.map((t) => (
+              <li key={t.id} className={t.done ? 'done' : ''}>
+                <span onClick={() => dispatch({ type: 'toggled', id: t.id })}>{t.text}</span>{' '}
+                <button onClick={() => dispatch({ type: 'deleted', id: t.id })}>x</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

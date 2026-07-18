@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 48 — data-driven quiz (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; }
+          button { display: block; margin: 8px 0; padding: 8px 16px; }
+          .correct { color: #2a2; } .wrong { color: #c33; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useReducer } = React;
+
+    // ==== content: data (js#47's split, unchanged) =================
+    const QUESTIONS = [
+      {
+        prompt: 'What does useState return?',
+        choices: ['a [value, setter] pair', 'the current props'],
+        answerIndex: 0,
+      },
+      {
+        prompt: 'When does useEffect with [] run?',
+        choices: ['every render', 'after the first render'],
+        answerIndex: 1,
+      },
+      {
+        prompt: 'Keys should be...',
+        choices: ['array indexes', 'stable ids from the data'],
+        answerIndex: 1,
+      },
+      {
+        prompt: 'Derived values belong in...',
+        choices: ['useState + an effect', 'a const in render'],
+        answerIndex: 1,
+      },
+    ];
+
+    // ==== flow: a reducer (react#13 replaces js#47's mutate+render) =
+    const initialState = { index: 0, score: 0, phase: 'asking', lastPick: null };
+
+    function quizReducer(state, action) {
+      switch (action.type) {
+        case 'answered': {
+          if (state.phase !== 'asking') return state;
+          const correct = action.choiceIndex === QUESTIONS[state.index].answerIndex;
+          return {
+            ...state,
+            phase: 'feedback',
+            lastPick: action.choiceIndex,
+            score: state.score + (correct ? 1 : 0),
+          };
+        }
+        case 'continued': {
+          const nextIndex = state.index + 1;
+          return {
+            ...state,
+            index: nextIndex,
+            lastPick: null,
+            phase: nextIndex < QUESTIONS.length ? 'asking' : 'done',
+          };
+        }
+        case 'restarted':
+          return initialState;
+        default:
+          throw new Error(`Unknown action: ${action.type}`);
+      }
+    }
+
+    // ==== view: one component renders ANY question =================
+    function QuestionCard({ question, phase, lastPick, onAnswer, onContinue, isLast }) {
+      return (
+        <div>
+          <p>{question.prompt}</p>
+          {question.choices.map((choice, i) => {
+            let className = '';
+            if (phase === 'feedback') {
+              if (i === question.answerIndex) className = 'correct';
+              else if (i === lastPick) className = 'wrong';
+            }
+            return (
+              <button key={i} className={className}
+                      disabled={phase === 'feedback'}
+                      onClick={() => onAnswer(i)}>
+                {choice}
+              </button>
+            );
+          })}
+          {phase === 'feedback' && (
+            <button onClick={onContinue}>
+              {isLast ? 'See results' : 'Next question'}
+            </button>
+          )}
+        </div>
+      );
+    }
+
+    function App() {
+      const [state, dispatch] = useReducer(quizReducer, initialState);
+
+      if (state.phase === 'done') {
+        return (
+          <div>
+            <h1>React Quiz</h1>
+            <p>Done! Score: {state.score}/{QUESTIONS.length}</p>
+            <button onClick={() => dispatch({ type: 'restarted' })}>play again</button>
+          </div>
+        );
+      }
+
+      return (
+        <div>
+          <h1>React Quiz</h1>
+          <p>Question {state.index + 1} of {QUESTIONS.length} · score {state.score}</p>
+          <QuestionCard
+            question={QUESTIONS[state.index]}
+            phase={state.phase}
+            lastPick={state.lastPick}
+            isLast={state.index + 1 === QUESTIONS.length}
+            onAnswer={(i) => dispatch({ type: 'answered', choiceIndex: i })}
+            onContinue={() => dispatch({ type: 'continued' })}
+          />
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Compare with js#47's refactor: same QUESTIONS data, same
+            phases — but the manual render() calls became automatic
+            (React re-renders on dispatch), and the flow rules
+            moved into a reducer you could unit-test. The fourth
+            question cost 5 data lines; feedback and restart came
+            from the phase machine, not from new components.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

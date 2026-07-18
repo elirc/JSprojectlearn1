@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 07 — controlled inputs (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; }
+          input, button { margin: 4px 0; display: block; padding: 6px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    function App() {
+      // The form's contents ARE React state. The inputs display it;
+      // typing updates it. One source of truth, owned by React.
+      const [username, setUsername] = useState('');
+      const [email, setEmail] = useState('');
+      const [message, setMessage] = useState('');
+
+      // Everything below is DERIVED from that truth, live:
+      const isValid = username.length >= 3 && email.includes('@');
+
+      function handleSubmit(event) {
+        event.preventDefault(); // let the form submit via Enter too
+        setMessage(`Submitted: ${username} / ${email}`);
+      }
+
+      function fillDemoData() {
+        // "writing to the form" = setting state. No DOM surgery.
+        setUsername('ada');
+        setEmail('ada@analytical.engine');
+      }
+
+      return (
+        <form onSubmit={handleSubmit}>
+          <h1>Sign up</h1>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder="username"
+          />
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="email"
+          />
+
+          {/* features the original couldn't have, each one line: */}
+          <p style={{ color: '#666' }}>
+            {username ? `Hi, ${username}!` : 'Live preview appears here'}
+          </p>
+
+          <button type="button" onClick={fillDemoData}>fill demo data</button>
+          <button type="submit" disabled={!isValid}>
+            {isValid ? 'Submit' : 'Submit (fill the form first)'}
+          </button>
+          <p>{message}</p>
+        </form>
+      );
+    }
+
+    // The pattern: value={state} + onChange={setState} = a CONTROLLED
+    // input. It cannot disagree with React's state, because it
+    // doesn't have its own. (Project 12 scales this to big forms;
+    // project 36 turns it into a component API design principle.)
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

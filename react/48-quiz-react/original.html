@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 48 — quiz, componentized badly (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; }
+          button { display: block; margin: 8px 0; padding: 8px 16px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // js#47's ORIGINAL quiz, "ported" to React: one component per
+    // question, hardcoded flow. Learning JSX didn't fix the
+    // architecture — the same sins compile in any syntax.
+    function Question1({ onAnswer }) {
+      return (
+        <div>
+          <p>1. What does useState return?</p>
+          <button onClick={() => onAnswer(true)}>a [value, setter] pair</button>
+          <button onClick={() => onAnswer(false)}>the current props</button>
+        </div>
+      );
+    }
+
+    function Question2({ onAnswer }) {
+      return (
+        <div>
+          <p>2. When does useEffect with [] run?</p>
+          <button onClick={() => onAnswer(false)}>every render</button>
+          <button onClick={() => onAnswer(true)}>after the first render</button>
+        </div>
+      );
+    }
+
+    function Question3({ onAnswer }) {
+      return (
+        <div>
+          <p>3. Keys should be...</p>
+          <button onClick={() => onAnswer(false)}>array indexes</button>
+          <button onClick={() => onAnswer(true)}>stable ids from the data</button>
+        </div>
+      );
+    }
+
+    function App() {
+      const [screen, setScreen] = useState(1); // 1, 2, 3, 'done'
+      const [score, setScore] = useState(0);
+
+      function makeHandler(nextScreen) {
+        return (correct) => {
+          if (correct) setScore((s) => s + 1);
+          setScreen(nextScreen);
+        };
+      }
+
+      return (
+        <div>
+          <h1>React Quiz</h1>
+          {screen === 1 && <Question1 onAnswer={makeHandler(2)} />}
+          {screen === 2 && <Question2 onAnswer={makeHandler(3)} />}
+          {screen === 3 && <Question3 onAnswer={makeHandler('done')} />}
+          {screen === 'done' && <p>Done! Score: {score}/3</p>}
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Three questions = three COMPONENTS, each hardcoding its
+            text, its buttons, and which answer is right (readable in
+            the JSX — view source to cheat, js#47's leak again). The
+            flow lives in makeHandler(2), makeHandler(3)... adding a
+            question means a new component AND renumbering the chain.
+            No feedback screen, no restart, no shuffling — all
+            structurally awkward, exactly like the vanilla original.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

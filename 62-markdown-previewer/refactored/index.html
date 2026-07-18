@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Markdown previewer (refactored)</title>
+  <style>
+    body { font-family: sans-serif; margin: 0; display: flex; height: 100vh; }
+    textarea, #preview { flex: 1; padding: 16px; font-size: 15px; box-sizing: border-box; }
+    textarea { font-family: monospace; border: none; border-right: 1px solid #ccc; resize: none; }
+    #preview { overflow: auto; }
+    pre { background: #f4f4f4; padding: 8px; overflow-x: auto; }
+    code { background: #f4f4f4; padding: 1px 4px; }
+  </style>
+</head>
+<body>
+  <textarea id="src"># Hello
+
+Type *markdown* on the left.
+
+**Try the attacks that broke the original:**
+
+- `<img src=x onerror="alert('xss')">` (paste it OUTSIDE backticks too)
+- [click me](javascript:alert('gotcha'))
+
+```
+code blocks are *literal* — # not a heading
+```
+</textarea>
+  <div id="preview"></div>
+
+  <script>
+    // --- inline copy of refactored/markdown.js (tested in
+    //     markdown.test.js; file:// pages can't import modules) ------
+    function escapeHtml(s) {
+      const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+      return s.replace(/[&<>"']/g, (ch) => map[ch]);
+    }
+
+    const NUL = String.fromCharCode(0);
+    const PLACEHOLDER_RE = new RegExp(`${NUL}(\\d+)${NUL}`, 'g');
+
+    function renderInline(text) {
+      const codeSpans = [];
+      let out = text.replace(/`([^`]+)`/g, (_, code) => {
+        codeSpans.push(`<code>${code}</code>`);
+        return NUL + (codeSpans.length - 1) + NUL;
+      });
+      out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      out = out.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+      out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (whole, label, url) =>
+        isSafeUrl(url) ? `<a href="${url}">${label}</a>` : whole);
+      return out.replace(PLACEHOLDER_RE, (_, i) => codeSpans[i]);
+    }
+
+    function isSafeUrl(url) {
+      return /^(https?:|mailto:|\/|\.\/|#)/i.test(url);
+    }
+
+    function markdownToHtml(source) {
+      const lines = escapeHtml(source).split('\n');
+      const blocks = [];
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        if (line.trim() === '') { i++; continue; }
+        if (line.startsWith('```')) {
+          const code = [];
+          i++;
+          while (i < lines.length && !lines[i].startsWith('```')) code.push(lines[i++]);
+          i++;
+          blocks.push(`<pre><code>${code.join('\n')}</code></pre>`);
+          continue;
+        }
+        const heading = line.match(/^(#{1,6}) (.*)$/);
+        if (heading) {
+          const level = heading[1].length;
+          blocks.push(`<h${level}>${renderInline(heading[2])}</h${level}>`);
+          i++;
+          continue;
+        }
+        if (line.match(/^- /)) {
+          const items = [];
+          while (i < lines.length && lines[i].match(/^- /)) {
+            items.push(`<li>${renderInline(lines[i].slice(2))}</li>`);
+            i++;
+          }
+          blocks.push(`<ul>${items.join('')}</ul>`);
+          continue;
+        }
+        const para = [];
+        while (
+          i < lines.length && lines[i].trim() !== '' &&
+          !lines[i].startsWith('```') && !lines[i].match(/^(#{1,6}) /) && !lines[i].match(/^- /)
+        ) {
+          para.push(lines[i]);
+          i++;
+        }
+        blocks.push(`<p>${renderInline(para.join(' '))}</p>`);
+      }
+      return blocks.join('\n');
+    }
+
+    // ============ THE GLUE =========================================
+    // innerHTML is SAFE here — but only because markdownToHtml
+    // escapes all input before generating any markup. The sanitizer
+    // is the parser itself, and it's unit-tested in Node.
+    const src = document.getElementById('src');
+    function update() {
+      document.getElementById('preview').innerHTML = markdownToHtml(src.value);
+    }
+    src.oninput = update;
+    update();
+  </script>
+</body>
+</html>

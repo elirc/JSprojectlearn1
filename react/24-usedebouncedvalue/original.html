@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 24 — debounce done wrong (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    let searchCount = 0;
+    function searchApi(query) {
+      searchCount++;
+      return new Promise((resolve) =>
+        setTimeout(() => resolve(`${searchCount} searches so far — results for "${query}"`), 200),
+      );
+    }
+
+    // js#28 taught debounce(fn, ms). So... import the same idea into
+    // a component, right?
+    function debounce(fn, waitMs) {
+      let timeoutId;
+      return (...args) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => fn(...args), waitMs);
+      };
+    }
+
+    function App() {
+      const [query, setQuery] = useState('');
+      const [results, setResults] = useState('');
+
+      // THE TRAP: this line runs on EVERY render. Each render builds
+      // a BRAND NEW debounced function with a BRAND NEW (empty)
+      // timer. The old render's timer is never cleared by the new
+      // one — they're different closures. Debouncing is defeated:
+      const debouncedSearch = debounce((q) => {
+        searchApi(q).then(setResults);
+      }, 500);
+      // Each keystroke: render -> new debounced fn -> call it. The
+      // previous keystroke's timer still fires (nobody has its
+      // clearTimeout handle anymore). Net effect: one search PER
+      // KEYSTROKE, each 500ms late. Watch the search counter — type
+      // 5 letters, get 5 searches. Worse than no debounce: you kept
+      // the delay and lost the deduplication.
+
+      function handleChange(e) {
+        setQuery(e.target.value);
+        debouncedSearch(e.target.value);
+      }
+
+      return (
+        <div>
+          <h1>Search</h1>
+          <input value={query} onChange={handleChange} placeholder="type 5 letters, count the searches" />
+          <p>{results}</p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

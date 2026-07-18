@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 42 — hash router (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          nav a { margin-right: 12px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const ARTICLES = [
+      { id: 'keys', title: 'Why keys matter' },
+      { id: 'effects', title: 'Effects are for syncing' },
+      { id: 'state', title: 'Derive, don\'t store' },
+    ];
+
+    // ==== THE ROUTER HOOK =========================================
+    // The URL hash is the source of truth for "where we are". This
+    // hook SYNCHRONIZES React with it — a textbook outside-world
+    // effect (project 21's rule): subscribe to hashchange, cleanup
+    // on unmount (project 18).
+    function useHashRoute() {
+      const [hash, setHash] = useState(() => window.location.hash || '#/');
+
+      useEffect(() => {
+        const onHashChange = () => setHash(window.location.hash || '#/');
+        window.addEventListener('hashchange', onHashChange);
+        return () => window.removeEventListener('hashchange', onHashChange);
+      }, []);
+
+      // '#/articles/keys' -> ['articles', 'keys']  (parse, project 36 style)
+      return hash.replace(/^#\//, '').split('/').filter(Boolean);
+    }
+
+    // ==== SCREENS: plain components, addressed by URL =============
+    function HomePage() {
+      return <h1>Welcome!</h1>;
+    }
+
+    function ArticlesPage() {
+      return (
+        <div>
+          <h1>Articles</h1>
+          <ul>
+            {ARTICLES.map((a) => (
+              // navigation is just... links. The browser does the rest.
+              <li key={a.id}><a href={`#/articles/${a.id}`}>{a.title}</a></li>
+            ))}
+          </ul>
+        </div>
+      );
+    }
+
+    function ArticlePage({ articleId }) {
+      const article = ARTICLES.find((a) => a.id === articleId);
+      if (!article) return <h1>Not found</h1>; // bad URLs get a page too
+      return (
+        <div>
+          <h1>{article.title}</h1>
+          <p>Imagine profound content here.</p>
+          <a href="#/articles">back</a>
+        </div>
+      );
+    }
+
+    function App() {
+      const [section, param] = useHashRoute();
+
+      return (
+        <div>
+          <nav>
+            <a href="#/">Home</a>
+            <a href="#/articles">Articles</a>
+          </nav>
+
+          {section === undefined && <HomePage />}
+          {section === 'articles' && param === undefined && <ArticlesPage />}
+          {section === 'articles' && param !== undefined && <ArticlePage articleId={param} />}
+
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Open an article and look at the address bar: #/articles/keys.
+            Now F5 — still there. Browser back — goes to the list, like
+            a real site. Copy the URL to a friend — it opens YOUR page.
+            The view state didn't get smarter; it moved into the URL,
+            which the browser already knows how to persist, share, and
+            walk with back/forward. (Real apps use React Router and
+            history.pushState for clean URLs — same idea, same hook
+            shape, more machinery.)
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

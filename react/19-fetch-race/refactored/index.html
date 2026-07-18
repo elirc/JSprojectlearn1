@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 19 — race fixed (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    function searchApi(query) {
+      const delay = Math.max(200, 1200 - query.length * 300);
+      return new Promise((resolve) =>
+        setTimeout(
+          () => resolve(`results for "${query}" (took ${delay}ms)`),
+          delay,
+        ),
+      );
+    }
+
+    function App() {
+      const [query, setQuery] = useState('');
+      const [results, setResults] = useState('');
+
+      useEffect(() => {
+        if (query === '') { setResults(''); return; }
+
+        // THE FIX: each effect run gets its own `stale` flag in its
+        // own closure. When the query changes, React runs the CLEANUP
+        // of the previous effect first — flipping THAT run's flag —
+        // so the old response, whenever it lands, finds itself stale
+        // and is ignored. Only the newest run can ever write.
+        let stale = false;
+
+        searchApi(query).then((r) => {
+          if (!stale) setResults(r);
+        });
+
+        return () => { stale = true; };
+        // (With real fetch(), the upgrade is AbortController: pass
+        // controller.signal to fetch, call controller.abort() here —
+        // same shape, and it also cancels the network work. js#43
+        // met the same "you can't un-send a request, but you can
+        // refuse its answer" idea.)
+      }, [query]);
+
+      return (
+        <div>
+          <h1>Search</h1>
+          <input value={query} onChange={(e) => setQuery(e.target.value)}
+                 placeholder='type "cat" quickly' />
+          <p><strong>box says:</strong> {query || '(empty)'}</p>
+          <p><strong>results say:</strong> {results || '(none)'}</p>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Type "cat" fast: the slow "c" and "ca" responses still
+            arrive — and are discarded. The results always match the
+            box. The cleanup function isn't just for intervals
+            (project 18): it's also the "this render's world is over"
+            signal, perfect for expiring in-flight work.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "js-project-learn",
+  "version": "1.0.0",
+  "description": "165 projects (JS/React/TS) that teach 'easy to change' code: build it messy, refactor it clean, compare.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc -p typescript"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
+  }
+}

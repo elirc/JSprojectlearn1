@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 36 — half-controlled component (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .star { cursor: pointer; font-size: 28px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // A star-rating widget that OWNS its own state... but also takes
+    // an initial value, and reports changes. Who owns the rating?
+    // Answer: both. Which is to say: neither.
+    function StarRating({ initialValue, onChange }) {
+      const [value, setValue] = useState(initialValue);
+
+      function pick(n) {
+        setValue(n);
+        if (onChange) onChange(n);
+      }
+
+      return (
+        <span>
+          {[1, 2, 3, 4, 5].map((n) => (
+            <span key={n} className="star" onClick={() => pick(n)}>
+              {n <= value ? '★' : '☆'}
+            </span>
+          ))}
+        </span>
+      );
+    }
+
+    function App() {
+      const [rating, setRating] = useState(3);
+
+      return (
+        <div>
+          <h1>Review</h1>
+          <p>
+            <StarRating initialValue={rating} onChange={setRating} />
+            {' '}your rating: {rating}
+          </p>
+
+          {/* Feature 1: a reset button. It sets the parent's state...
+              but the widget keeps ITS copy. Click reset: the label
+              says 0, the stars still show your old pick. */}
+          <button onClick={() => setRating(0)}>reset rating</button>
+
+          {/* Feature 2: two synced widgets (rate the same product in
+              a summary and a detail view). Each owns a private copy;
+              pick 5 stars here, the other stays put: */}
+          <p>
+            the same rating, elsewhere on the page:{' '}
+            <StarRating initialValue={rating} onChange={setRating} />
+          </p>
+
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Both failures have one cause: TWO sources of truth. The
+            parent has `rating`; the widget has `value`; they agree
+            only at mount ("initialValue" — the word "initial" is the
+            confession). Every parent write after that is ignored.
+            This is projects 07/08's lesson recurring at the level of
+            a component API — and half the custom inputs ever
+            published have this exact bug.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

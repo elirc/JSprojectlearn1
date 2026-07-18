@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 33 — one mega context (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .panel { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 6px 0; }
+          .dark { background: #222; color: #eee; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useContext, createContext } = React;
+
+    // ONE context for the whole app: theme + user + notifications,
+    // all in one object. Convenient to set up. Expensive to live with.
+    const AppContext = createContext(null);
+
+    let themeRenders = 0, userRenders = 0, notifRenders = 0;
+
+    function ThemePanel() {
+      const { theme } = useContext(AppContext);
+      themeRenders++;
+      return (
+        <div className={`panel ${theme}`}>
+          theme panel ({theme}) · renders: {themeRenders}
+        </div>
+      );
+    }
+
+    function UserPanel() {
+      const { user } = useContext(AppContext);
+      userRenders++;
+      return (
+        <div className="panel">
+          user panel ({user.name}) · renders: {userRenders}
+        </div>
+      );
+    }
+
+    function NotificationBell() {
+      const { notifications } = useContext(AppContext);
+      notifRenders++;
+      return (
+        <div className="panel">
+          🔔 {notifications} · renders: {notifRenders}
+        </div>
+      );
+    }
+
+    function App() {
+      const [theme, setTheme] = useState('light');
+      const [user] = useState({ name: 'Ada' });
+      const [notifications, setNotifications] = useState(0);
+
+      // Every second, a notification arrives (simulated):
+      React.useEffect(() => {
+        const id = setInterval(() => setNotifications((n) => n + 1), 1000);
+        return () => clearInterval(id);
+      }, []);
+
+      return (
+        // Double trouble: (1) one context = every consumer wakes for
+        // every change; (2) the value is a FRESH object every render
+        // (project 30's trap), so consumers wake even if nothing
+        // they use changed.
+        <AppContext.Provider value={{ theme, setTheme, user, notifications }}>
+          <h1>Mega context</h1>
+          <button onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>
+            toggle theme
+          </button>
+          <ThemePanel />
+          <UserPanel />
+          <NotificationBell />
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Watch the counters: the notification ticks every second,
+            and ALL THREE panels re-render with it — the theme panel
+            and user panel don't use notifications, but they consume
+            the context that carries them. Context has no "I only
+            want this field" — a consumer wakes when the VALUE
+            changes, and this value changes when anything does.
+          </p>
+        </AppContext.Provider>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

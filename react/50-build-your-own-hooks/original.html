@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 50 — hooks as magic (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 560px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // Not "bad code" this time — a bad MENTAL MODEL, demonstrated.
+    // This developer treats the Rules of Hooks as arbitrary ritual...
+    // and then breaks one to see what happens.
+    function App() {
+      const [showName, setShowName] = useState(false);
+
+      // THE FORBIDDEN MOVE: a hook inside a condition.
+      // React's actual error is quite good — open the console after
+      // toggling — but WHY is this forbidden? "Because the docs say
+      // so" is where most developers stop.
+      let name = '(hidden)';
+      if (showName) {
+        const [n] = useState('Ada'); // hook call #2... sometimes
+        name = n;
+      }
+
+      const [count, setCount] = useState(0); // hook call #2... or #3?
+
+      return (
+        <div>
+          <h1>Rules of Hooks, broken live</h1>
+          <p>name: {name} · count: {count}</p>
+          <button onClick={() => setCount(count + 1)}>count++</button>{' '}
+          <button onClick={() => setShowName(!showName)}>
+            toggle name (breaks the app — watch the console)
+          </button>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Click count++ twice, then toggle name. React throws
+            "Rendered more hooks than during the previous render" —
+            or, in subtler variants of this bug, STATE SWAPS BETWEEN
+            HOOKS (count becomes 'Ada'). The rules —
+            "only call hooks at the top level, only from components"
+            — prevent this. But WHY do hooks care where they're
+            called from? What IS a hook? The refactored version
+            answers by building useState and useEffect from scratch
+            in ~60 lines.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

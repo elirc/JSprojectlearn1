@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 28 — memo + useCallback (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 560px; margin: 40px auto; }
+          .row { border-bottom: 1px solid #eee; padding: 6px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useCallback, memo } = React;
+
+    const ITEMS = Array.from({ length: 60 }, (_, i) => ({ id: i, label: `Item ${i}` }));
+
+    let rowRenders = 0;
+
+    function slowdown() {
+      const until = performance.now() + 2;
+      while (performance.now() < until) {}
+    }
+
+    const Row = memo(function Row({ item, onPick }) {
+      rowRenders++;
+      slowdown();
+      return (
+        <div className="row" onClick={() => onPick(item.id)}>
+          {item.label}
+        </div>
+      );
+    });
+
+    function App() {
+      const [picked, setPicked] = useState(null);
+      const [filterText, setFilterText] = useState('');
+
+      // useCallback = useMemo for a function: return the SAME
+      // function object across renders (until deps change), so
+      // memo'd children see an unchanged prop and skip. Empty deps
+      // are honest here because the updater form (project 11) needs
+      // nothing from render scope.
+      const handlePick = useCallback((id) => setPicked(id), []);
+
+      return (
+        <div>
+          <h1>Item picker</h1>
+          <input placeholder="type here — smooth now"
+                 value={filterText} onChange={(e) => setFilterText(e.target.value)} />
+          <p>picked: {picked ?? 'nothing'} · total row renders: {rowRenders}</p>
+          {ITEMS.map((item) => (
+            <Row key={item.id} item={item} onPick={handlePick} />
+          ))}
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Type: the row-render counter stays at 60 (the initial
+            paint). The chain that makes list perf work, and breaks if
+            ANY link is missing:
+            stable props (useCallback/useMemo) → memo'd child sees
+            Object.is-equal props → skip. One fresh inline object or
+            arrow anywhere in the props, and that child's memo is
+            decoration (project 30 hunts those).
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

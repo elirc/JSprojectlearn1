@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Connect Four (refactored)</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; }
+    #board { border-collapse: collapse; margin: 20px auto; }
+    #board td { width: 50px; height: 50px; border: 2px solid #226;
+                border-radius: 50%; background: #eee; cursor: pointer; }
+    td.red { background: #c33; } td.yellow { background: #cc2; }
+  </style>
+</head>
+<body>
+  <h1>Connect Four</h1>
+  <p id="status"></p>
+  <table id="board"></table>
+  <p><button id="resetButton">New game</button></p>
+
+  <script>
+    // ================= GAME RULES (module 1) =====================
+    // This section is a copy of game.js, which is unit-tested in
+    // Node. (Browsers refuse to import modules from file:// pages —
+    // with a dev server you'd write: import { ... } from './game.js')
+    // Notice: nothing in this section touches the DOM.
+    // =============================================================
+    const ROWS = 6;
+    const COLS = 7;
+
+    function createBoard() {
+      return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
+    }
+
+    function dropDisc(board, col, player) {
+      for (let row = ROWS - 1; row >= 0; row--) {
+        if (board[row][col] === null) {
+          const next = board.map((r) => [...r]);
+          next[row][col] = player;
+          return { board: next, row };
+        }
+      }
+      return null;
+    }
+
+    const DIRECTIONS = [[0, 1], [1, 0], [1, 1], [1, -1]];
+
+    function isWinningMove(board, row, col) {
+      const player = board[row][col];
+      return DIRECTIONS.some(([dRow, dCol]) => {
+        const run = 1
+          + countRun(board, row, col, dRow, dCol, player)
+          + countRun(board, row, col, -dRow, -dCol, player);
+        return run >= 4;
+      });
+    }
+
+    function countRun(board, row, col, dRow, dCol, player) {
+      let count = 0;
+      let r = row + dRow;
+      let c = col + dCol;
+      while (r >= 0 && r < ROWS && c >= 0 && c < COLS && board[r][c] === player) {
+        count++;
+        r += dRow;
+        c += dCol;
+      }
+      return count;
+    }
+
+    function isBoardFull(board) {
+      return board[0].every((cell) => cell !== null);
+    }
+
+    // ================= RENDERING (module 2) ======================
+    // Knows how to draw a state. Knows nothing about the rules —
+    // it never decides anything, it only displays.
+    // =============================================================
+    function render(state) {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          document.getElementById(`cell-${r}-${c}`).className =
+            state.board[r][c] ?? '';
+        }
+      }
+      document.getElementById('status').textContent = statusText(state);
+    }
+
+    function statusText({ phase, current, winner }) {
+      if (phase === 'won') return `${winner} wins!`;
+      if (phase === 'draw') return 'Draw!';
+      return `${current}'s turn`;
+    }
+
+    // ================= CONTROLLER (module 3) =====================
+    // Owns the state, connects clicks -> rules -> render.
+    // =============================================================
+    let state;
+
+    function newGame() {
+      state = { board: createBoard(), current: 'red', phase: 'playing', winner: null };
+      render(state);
+    }
+
+    function handleColumnClick(col) {
+      if (state.phase !== 'playing') return;
+
+      const result = dropDisc(state.board, col, state.current);
+      if (result === null) return; // column full
+
+      state.board = result.board;
+      if (isWinningMove(state.board, result.row, col)) {
+        state.phase = 'won';
+        state.winner = state.current;
+      } else if (isBoardFull(state.board)) {
+        state.phase = 'draw';
+      } else {
+        state.current = state.current === 'red' ? 'yellow' : 'red';
+      }
+      render(state);
+    }
+
+    // ---- one-time DOM setup ----
+    const table = document.getElementById('board');
+    for (let r = 0; r < ROWS; r++) {
+      const tr = document.createElement('tr');
+      for (let c = 0; c < COLS; c++) {
+        const td = document.createElement('td');
+        td.id = `cell-${r}-${c}`;
+        td.onclick = () => handleColumnClick(c);
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    }
+    document.getElementById('resetButton').onclick = newGame;
+    newGame();
+  </script>
+</body>
+</html>

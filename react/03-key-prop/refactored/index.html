@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 03 — stable keys (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; }
+          .row { margin: 6px 0; } input { margin-left: 8px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    function App() {
+      const [guests, setGuests] = useState([
+        { id: 101, name: 'Ada' },
+        { id: 102, name: 'Grace' },
+        { id: 103, name: 'Alan' },
+      ]);
+
+      function removeGuest(id) {
+        setGuests((current) => current.filter((g) => g.id !== id));
+      }
+
+      return (
+        <div>
+          <h1>Dinner guests</h1>
+          <p>
+            Same experiment: type meals, remove Grace — everyone keeps
+            their own meal, because each row's key is the GUEST's
+            identity, not its position.
+          </p>
+          {guests.map((guest) => (
+            // key = the data's own stable id. When Grace's row leaves,
+            // React sees key 102 disappear and unmounts THAT row —
+            // Ada (101) and Alan (103) keep their DOM and their state.
+            <div className="row" key={guest.id}>
+              <button onClick={() => removeGuest(guest.id)}>x</button>
+              <strong> {guest.name}</strong>
+              <input placeholder="meal choice" />
+            </div>
+          ))}
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Rule of thumb: index-as-key is only safe when the list never
+            reorders, never inserts/removes in the middle, and rows hold
+            no state. That's rare enough to treat "never use index" as
+            the default.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

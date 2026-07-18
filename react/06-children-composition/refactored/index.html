@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 06 — children composition (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+    .panel { border: 1px solid #ccc; border-radius: 8px; margin: 12px 0; }
+    .panel-head { background: #f4f4f4; padding: 8px 12px; border-bottom: 1px solid #ccc; font-weight: bold; }
+    .panel-body { padding: 12px; }
+    .panel-foot { padding: 8px 12px; border-top: 1px solid #ccc; color: #666; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    // The Panel owns STRUCTURE (frame, header bar, footer bar) and
+    // nothing else. Content flows through children — the caller
+    // writes whatever JSX they want in each slot.
+    function Panel({ title, footer, children }) {
+      return (
+        <div className="panel">
+          <div className="panel-head">{title}</div>
+          <div className="panel-body">{children}</div>
+          {footer != null && <div className="panel-foot">{footer}</div>}
+        </div>
+      );
+    }
+
+    function App() {
+      return (
+        <div>
+          <h1>Panels</h1>
+
+          <Panel title={<span>👋 Welcome</span>}>
+            Glad you're here.
+          </Panel>
+
+          <Panel
+            title={<span>⚠️ Warning</span>}
+            footer={<span>See <a href="#">storage settings</a></span>}
+          >
+            <strong>Disk</strong> is nearly full.
+          </Panel>
+
+          {/* "Two buttons in the footer" — v1 through v5 of the
+              original couldn't; here it's just... writing it: */}
+          <Panel
+            title="Confirm delete"
+            footer={
+              <span>
+                <button>Cancel</button> <button>Delete</button>
+              </span>
+            }
+          >
+            This cannot be undone. A list, an image, a <code>form</code> —
+            any JSX works here, because the body is {'{children}'}.
+          </Panel>
+
+          {/* Note what Panel did NOT need: boldFirstWord, titleIcon,
+              footerLinkText... Panel has 3 props and handles all of
+              these because it stopped trying to DESCRIBE content and
+              started ACCEPTING it. */}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

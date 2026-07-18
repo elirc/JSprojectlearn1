@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 18 — cleaned-up effects (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    let activeIntervals = 0; // live-interval gauge: our leak detector
+
+    function Clock() {
+      const [now, setNow] = useState(new Date());
+
+      useEffect(() => {
+        // SETUP: start the subscription...
+        const id = setInterval(() => setNow(new Date()), 1000);
+        activeIntervals++;
+        document.title = `live intervals: ${activeIntervals}`;
+
+        // ...CLEANUP: the returned function undoes the setup. React
+        // calls it on unmount (and before every re-run of the
+        // effect). Setup and teardown live in the same block — you
+        // can check the pairing at a glance, like matched brackets.
+        return () => {
+          clearInterval(id);
+          activeIntervals--;
+          document.title = `live intervals: ${activeIntervals}`;
+        };
+      }, []);
+
+      return <h2>{now.toLocaleTimeString()}</h2>;
+    }
+
+    function App() {
+      const [visible, setVisible] = useState(true);
+
+      return (
+        <div>
+          <h1>Clock</h1>
+          <button onClick={() => setVisible(!visible)}>
+            {visible ? 'hide' : 'show'} clock
+          </button>
+          {visible && <Clock />}
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Leak detector: the tab title shows LIVE interval count.
+            Toggle all you like — it's 1 when the clock shows, 0 when
+            hidden. Every setup has its teardown.
+          </p>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            The pairs to memorize:
+            setInterval/clearInterval · setTimeout/clearTimeout ·
+            addEventListener/removeEventListener ·
+            subscribe/unsubscribe (js#38's returned unsubscriber was
+            DESIGNED for this line) · new AbortController / .abort()
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

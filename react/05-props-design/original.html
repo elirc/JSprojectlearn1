@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 05 — boolean prop soup (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 600px; margin: 40px auto; }
+          button { margin: 4px; padding: 8px 16px; border-radius: 6px; border: 1px solid #ccc; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    // The Button component that grew one boolean at a time. Each new
+    // design need added a flag; nobody ever asked what happens when
+    // two flags are BOTH true.
+    function Button({ label, primary, danger, ghost, small, large, onClick }) {
+      let style = { background: '#eee', color: '#000', fontSize: 14 };
+      if (primary) { style.background = '#36c'; style.color = '#fff'; }
+      if (danger) { style.background = '#c33'; style.color = '#fff'; }
+      if (ghost) { style.background = 'transparent'; style.borderStyle = 'dashed'; }
+      if (small) { style.fontSize = 11; style.padding = '4px 8px'; }
+      if (large) { style.fontSize = 18; style.padding = '12px 24px'; }
+      return <button style={style} onClick={onClick}>{label}</button>;
+    }
+
+    function App() {
+      return (
+        <div>
+          <h1>Buttons</h1>
+          <Button label="Save" primary />
+          <Button label="Delete" danger />
+          <Button label="Cancel" ghost />
+
+          <h3>The states nobody designed:</h3>
+          {/* primary AND danger? Last if wins — silently. */}
+          <Button label="primary + danger??" primary danger />
+          {/* small AND large? large wins because of if-order. */}
+          <Button label="small + large??" small large />
+          {/* 3 variants + 2 sizes as booleans = 2^5 = 32 combinations,
+              of which the design system defines... 9. The other 23
+              compile fine and render SOMETHING. Also: `label` as a
+              string prop means no icons, no <kbd> hints, no bold —
+              the content door is one prop wide. */}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

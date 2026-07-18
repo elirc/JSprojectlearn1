@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 50 — hooks from scratch (refactored)</title>
+  <style> body { font-family: sans-serif; max-width: 560px; margin: 40px auto; }
+          button { margin: 4px; } .app { border: 1px solid #ccc; border-radius: 8px; padding: 12px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <!-- No React on this page. We ARE the React. -->
+  <script>
+    // ================= MiniReact: hooks in ~50 lines ==============
+    // The entire secret: hook state lives in an ARRAY, and hook
+    // calls are matched to array slots BY CALL ORDER. A cursor
+    // starts at 0 each render; every useState/useEffect call claims
+    // slot cursor++. That's it. That's the magic.
+    const MiniReact = (() => {
+      let hooks = [];        // slot i = state for the i-th hook call
+      let cursor = 0;        // which slot the NEXT hook call gets
+      let rerender = null;   // scheduled by setState
+
+      function useState(initialValue) {
+        const slot = cursor++;                            // claim my slot
+        if (!(slot in hooks)) hooks[slot] = initialValue; // first render only
+
+        const setState = (next) => {
+          hooks[slot] = typeof next === 'function' ? next(hooks[slot]) : next;
+          rerender();                                     // state changed -> redraw
+        };
+        return [hooks[slot], setState];
+      }
+
+      function useEffect(effect, deps) {
+        const slot = cursor++;
+        const previous = hooks[slot];                     // { deps, cleanup } | undefined
+        const changed =
+          !previous || !deps || deps.some((d, i) => !Object.is(d, previous.deps[i]));
+
+        if (changed) {
+          if (previous && previous.cleanup) previous.cleanup(); // cleanup before re-run (project 18!)
+          const cleanup = effect() || null;
+          hooks[slot] = { deps, cleanup };
+        }
+      }
+
+      function render(component, container) {
+        rerender = () => render(component, container);
+        cursor = 0;                        // rewind: slots re-claimed in order
+        const html = component();          // hook calls run: slot 0, 1, 2...
+        container.innerHTML = html;
+        if (component.bindEvents) component.bindEvents(container);
+      }
+
+      return { useState, useEffect, render };
+    })();
+
+    // ================= An app, using OUR hooks ====================
+    const { useState, useEffect } = MiniReact;
+
+    // Our toy renderer returns an HTML string and wires events by
+    // hand afterwards (real React returns elements and wires
+    // declaratively — the HOOKS are the lesson, not the renderer).
+    // Setters are stashed each render so bindEvents can reach them.
+    const handles = {};
+
+    function CounterApp() {
+      const [count, setCount] = useState(0);    // slot 0
+      const [name, setName] = useState('Ada');  // slot 1
+      handles.setCount = setCount;
+      handles.setName = setName;
+
+      useEffect(() => {                         // slot 2
+        document.title = `${name}: ${count}`;
+      }, [count, name]);
+
+      return `
+        <div class="app">
+          <h1>MiniReact</h1>
+          <p>${name} has clicked ${count} times (watch the tab title)</p>
+          <button id="inc">count++</button>
+          <button id="rename">rename</button>
+          <p style="color:#666;font-size:14px">
+            No React on this page — useState and useEffect are ~50
+            lines of plain JS above. And now the Rules of Hooks
+            explain themselves: state is matched to calls BY ORDER
+            (slot 0, slot 1, ...), so a hook inside an if{} would
+            shift every later hook into the wrong slot — count would
+            receive 'Ada'. "Only call hooks at the top level" isn't
+            ritual; it's keeping the cursor honest.
+          </p>
+        </div>
+      `;
+    }
+
+    CounterApp.bindEvents = (container) => {
+      container.querySelector('#inc').onclick = () =>
+        handles.setCount((c) => c + 1);       // updater form: project 11
+      container.querySelector('#rename').onclick = () =>
+        handles.setName((n) => (n === 'Ada' ? 'Grace' : 'Ada'));
+    };
+
+    MiniReact.render(CounterApp, document.getElementById('root'));
+  </script>
+</body>
+</html>

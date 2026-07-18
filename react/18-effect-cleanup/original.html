@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 18 — leaked effects (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 520px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // A live clock widget you can show/hide. Every mount starts an
+    // interval... and no unmount ever stops one.
+    let tickCount = 0; // page-global tick counter: our leak detector
+
+    function Clock() {
+      const [now, setNow] = useState(new Date());
+
+      useEffect(() => {
+        setInterval(() => {
+          tickCount++;
+          document.title = `ticks: ${tickCount}`; // watch the tab title
+          setNow(new Date());
+        }, 1000);
+        // no return = no cleanup. The interval outlives the
+        // component. It also keeps calling setNow on an UNMOUNTED
+        // component — check the console for React's warning.
+      }, []);
+
+      return <h2>{now.toLocaleTimeString()}</h2>;
+    }
+
+    function App() {
+      const [visible, setVisible] = useState(true);
+
+      return (
+        <div>
+          <h1>Clock</h1>
+          <button onClick={() => setVisible(!visible)}>
+            {visible ? 'hide' : 'show'} clock
+          </button>
+          {visible && <Clock />}
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Leak detector: watch the TAB TITLE. Toggle the clock
+            off and on five times, then hide it. The title keeps
+            counting — and faster than 1/sec, because SIX intervals
+            are now running: one per mount, zero ever stopped. Each
+            one holds the component's memory forever (a closure
+            leak, js#27's mechanics working against you).
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

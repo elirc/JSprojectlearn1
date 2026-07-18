@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 32 — unmount wipes state (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 560px; margin: 40px auto; }
+          .card { border: 1px solid #ccc; border-radius: 8px; padding: 12px; margin: 8px 0; }
+          textarea { width: 100%; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // A support-ticket page with two tabs: the reply you're writing,
+    // and the customer's details. Tabs implemented the obvious way:
+    // render only the active one.
+    function ReplyTab() {
+      const [reply, setReply] = useState('');
+      return (
+        <div className="card">
+          <p>Your reply:</p>
+          <textarea rows="4" value={reply} onChange={(e) => setReply(e.target.value)}
+                    placeholder="type a long, thoughtful reply..." />
+        </div>
+      );
+    }
+
+    function DetailsTab() {
+      return (
+        <div className="card">
+          <p>Customer: Ada Lovelace · Plan: Enterprise · Mood: patient, for now</p>
+        </div>
+      );
+    }
+
+    function App() {
+      const [tab, setTab] = useState('reply');
+
+      return (
+        <div>
+          <h1>Ticket #42</h1>
+          <button onClick={() => setTab('reply')} disabled={tab === 'reply'}>Reply</button>
+          <button onClick={() => setTab('details')} disabled={tab === 'details'}>Details</button>
+
+          {tab === 'reply' && <ReplyTab />}
+          {tab === 'details' && <DetailsTab />}
+
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Type half a reply, peek at Details, come back: YOUR REPLY
+            IS GONE. `tab === 'reply' &&` doesn't hide ReplyTab — it
+            UNMOUNTS it, and unmounting destroys state (the flip side
+            of project 31, where we destroyed state on purpose).
+            Here it's the user's work being destroyed by a UI toggle.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

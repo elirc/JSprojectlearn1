@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 04 — conditional soup (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // An inbox header. All the display logic lives in ONE JSX
+    // expression, stacked ternaries and && chains.
+    function App() {
+      const [messages, setMessages] = useState([]);
+      const [isLoading, setIsLoading] = useState(false);
+      const [error, setError] = useState(null);
+
+      function load(count, fail) {
+        setIsLoading(true);
+        setError(null);
+        setTimeout(() => {
+          setIsLoading(false);
+          if (fail) setError('server exploded');
+          else setMessages(Array.from({ length: count }, (_, i) => `msg ${i + 1}`));
+        }, 600);
+      }
+
+      return (
+        <div>
+          <h1>Inbox</h1>
+          <button onClick={() => load(3)}>load 3</button>{' '}
+          <button onClick={() => load(0)}>load 0</button>{' '}
+          <button onClick={() => load(0, true)}>load (fails)</button>
+
+          {/* Read this cold and say what renders when. Take your time. */}
+          {isLoading ? (
+            <p>Loading...</p>
+          ) : error ? (
+            <p style={{ color: 'red' }}>{error}</p>
+          ) : messages.length === 0 ? (
+            <p>No messages.</p>
+          ) : messages.length === 1 ? (
+            <p>One message: {messages[0]}</p>
+          ) : (
+            <ul>{messages.map((m) => <li key={m}>{m}</li>)}</ul>
+          )}
+
+          {/* And the classic && gotcha — this is supposed to show a
+              badge "only when there are unread messages": */}
+          {messages.length && <p>🔵 {messages.length} unread</p>}
+          {/* Click "load 0": a bare 0 renders on the page. `0 && x`
+              is 0, and React renders the number 0. `&&` needs a
+              BOOLEAN on the left, not a count. */}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

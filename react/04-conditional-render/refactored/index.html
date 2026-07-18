@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 04 — clear conditionals (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 500px; margin: 40px auto; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // The branching moved into its own component, where EARLY RETURNS
+    // express it the way you'd say it aloud: "if loading, spinner;
+    // if error, message; if empty, empty state; otherwise, the list."
+    function MessageList({ isLoading, error, messages }) {
+      if (isLoading) return <p>Loading...</p>;
+      if (error) return <p style={{ color: 'red' }}>{error}</p>;
+      if (messages.length === 0) return <p>No messages.</p>;
+      if (messages.length === 1) return <p>One message: {messages[0]}</p>;
+      return <ul>{messages.map((m) => <li key={m}>{m}</li>)}</ul>;
+    }
+
+    function UnreadBadge({ count }) {
+      // Guard with a real boolean — a count can never leak onto the
+      // page. (count > 0, not just count.)
+      if (count === 0) return null; // "render nothing" is a return value
+      return <p>🔵 {count} unread</p>;
+    }
+
+    function App() {
+      const [messages, setMessages] = useState([]);
+      const [isLoading, setIsLoading] = useState(false);
+      const [error, setError] = useState(null);
+
+      function load(count, fail) {
+        setIsLoading(true);
+        setError(null);
+        setTimeout(() => {
+          setIsLoading(false);
+          if (fail) setError('server exploded');
+          else setMessages(Array.from({ length: count }, (_, i) => `msg ${i + 1}`));
+        }, 600);
+      }
+
+      return (
+        <div>
+          <h1>Inbox</h1>
+          <button onClick={() => load(3)}>load 3</button>{' '}
+          <button onClick={() => load(0)}>load 0</button>{' '}
+          <button onClick={() => load(0, true)}>load (fails)</button>
+
+          <MessageList isLoading={isLoading} error={error} messages={messages} />
+          <UnreadBadge count={messages.length} />
+        </div>
+      );
+    }
+
+    // (Those three separate state flags — isLoading / error / data —
+    // have their own problems. Project 20 replaces them with one
+    // status value.)
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
