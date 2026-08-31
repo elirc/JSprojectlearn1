@@ -1,4 +1,4 @@
-# TypeScript track — 42 projects
+# TypeScript track — 52 projects
 
 Same method, new twist: in this track **the compiler is the test runner**.
 
@@ -86,6 +86,23 @@ typecheck-only).
 | 40 | typed-ast | js#49's expression AST as a discriminated union |
 | 41 | generic-lru | js#41's LRU cache as `LruCache<K, V>` |
 | 42 | type-testing | The capstone: test your *types* with Expect/Equal |
+
+### Extended set: type-level engineering (43–52)
+| # | Exercise | Lesson |
+|---|----------|--------|
+| 43 | schema-infer | One schema, two worlds: runtime validation + `Infer<typeof schema>` |
+| 44 | route-params | Template-literal types extract `:params` from route strings |
+| 45 | fluent-builder | A builder whose `.build()` doesn't exist until it's safe |
+| 46 | typestate-connection | send-before-connect becomes a compile error |
+| 47 | deep-utility-types | Recursive DeepPartial/DeepReadonly done right (arrays!) |
+| 48 | variance-in-out | Why `Dog[]` as `Animal[]` bites — readers vs writers |
+| 49 | typed-fetch-wrapper | An endpoint map makes every API call honest |
+| 50 | json-visitor | The recursive `Json` type + an exhaustive visitor |
+| 51 | event-payload-maps | Event name → exact payload, enforced |
+| 52 | branded-units | Px/Em/Ms as branded numbers; cross-unit math won't compile |
+
+Each exercise also has `LEARN.md` and `PRACTICE.md`; this folder has
+`HANDBOOK.md` and `QUIZ.md` too.
 
 ## The TypeScript one big idea
 

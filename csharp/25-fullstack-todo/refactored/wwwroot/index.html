@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Todos</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <h1>Todos</h1>
+    <p id="error" class="error" hidden></p>
+    <form id="add-form" autocomplete="off">
+      <input id="new-text" placeholder="What needs doing?" aria-label="New todo text">
+      <button>Add</button>
+    </form>
+    <ul id="list" aria-live="polite"></ul>
+    <p id="counts" class="counts"></p>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

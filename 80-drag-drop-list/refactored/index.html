@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Drag to reorder (refactored)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 460px; margin: 32px auto; }
+    ul { list-style: none; padding: 0; }
+    li { background: #fff; border: 1px solid #ccc; border-radius: 4px; padding: 10px;
+         margin: 6px 0; cursor: grab; display: flex; justify-content: space-between; }
+    li.dragging { opacity: 0.4; }
+    li.drop-target { border-top: 3px solid #48c; }
+    li button { font: 12px sans-serif; margin-left: 4px; cursor: pointer; }
+    pre { background: #f4f4f4; border: 1px solid #ddd; padding: 10px; font-size: 13px;
+          white-space: pre-wrap; min-height: 40px; }
+    button { font: inherit; margin: 4px 4px 0 0; }
+    p.note { color: #555; font-size: 13px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>My day, in order</h1>
+  <ul id="list"></ul>
+
+  <button id="print">Print state</button>
+  <button id="save">Save order</button>
+  <button id="reload">Reload page</button>
+  <pre id="out"></pre>
+
+  <p class="note">
+    Drag items, or use the ↑ ↓ buttons — both do the same thing, because both
+    are just `moveItem(items, from, to)`. <b>Print state</b> can never
+    disagree with the screen, and <b>Save</b> then <b>Reload</b> keeps your
+    order, because the array is the thing that changed.
+  </p>
+
+  <script>
+    // --- inline copy of refactored/move.js (tested in move.test.js;
+    //     file:// pages can't import modules) -----------------------
+    function moveItem(list, from, to) {
+      if (!Number.isInteger(from) || !Number.isInteger(to)) {
+        throw new TypeError(`moveItem needs whole-number indexes, got (${from}, ${to})`);
+      }
+      if (list.length === 0) return [];
+      const last = list.length - 1;
+      const fromIndex = Math.min(Math.max(from, 0), last);
+      const toIndex = Math.min(Math.max(to, 0), last);
+      const next = [...list];
+      if (fromIndex === toIndex) return next;
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return next;
+    }
+
+    // ============================================================
+    // 1. STATE — the array is the list. Whatever is on screen is a
+    //    drawing of this, and nothing else is ever consulted.
+    // ============================================================
+    const DEFAULT_ITEMS = [
+      { id: 1, text: 'Wake up' },
+      { id: 2, text: 'Coffee' },
+      { id: 3, text: 'Code' },
+      { id: 4, text: 'Lunch' },
+      { id: 5, text: 'Code more' },
+      { id: 6, text: 'Sleep' },
+    ];
+
+    let items = load();
+    let dragFrom = null; // which index is in the air right now
+
+    // ============================================================
+    // 2. ACTIONS — the only code allowed to change the list, and
+    //    every one of them is the same pure function.
+    // ============================================================
+    function move(from, to) {
+      items = moveItem(items, from, to);
+      render();
+    }
+
+    // ============================================================
+    // 3. RENDER — rebuild the list from `items`. Six rows: wiping
+    //    and redrawing costs nothing and guarantees the screen can
+    //    never drift from the data (project 14's protocol).
+    // ============================================================
+    const list = document.getElementById('list');
+
+    function render() {
+      list.replaceChildren(...items.map((item, index) => {
+        const li = document.createElement('li');
+        li.draggable = true;
+        li.dataset.index = index; // written BY render; only ever read as identity
+
+        const label = document.createElement('span');
+        label.textContent = item.text;
+
+        const up = document.createElement('button');
+        up.textContent = '↑';
+        up.onclick = () => move(index, index - 1);
+
+        const down = document.createElement('button');
+        down.textContent = '↓';
+        down.onclick = () => move(index, index + 1);
+
+        const controls = document.createElement('span');
+        controls.append(up, down);
+        li.append(label, controls);
+        return li;
+      }));
+
+      save();
+    }
+
+    // ============================================================
+    // 4. DRAG GLUE — the browser's job is to report a gesture; ours
+    //    is to turn it into two numbers. Nothing here decides what
+    //    the list becomes, and nothing here is the truth about it.
+    // ============================================================
+    list.addEventListener('dragstart', (event) => {
+      const li = event.target.closest('li');
+      dragFrom = Number(li.dataset.index);
+      // The payload is an INDEX, not a DOM node: data, which survives
+      // a re-render, instead of a pointer to something that might not.
+      event.dataTransfer.setData('text/plain', String(dragFrom));
+      li.classList.add('dragging');
+    });
+
+    list.addEventListener('dragover', (event) => {
+      event.preventDefault(); // this is the opt-in that makes "drop" fire at all
+      const over = event.target.closest('li');
+      if (!over) return;
+      // A blue line showing where the item would land. This class is
+      // DECORATION: nothing ever reads it back, and the next render wipes
+      // it. The test for "is this state?" is simple — if I deleted the
+      // whole DOM and re-rendered from `items`, would anything be lost?
+      for (const li of list.children) li.classList.remove('drop-target');
+      over.classList.add('drop-target');
+    });
+
+    list.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const over = event.target.closest('li');
+      const from = Number(event.dataTransfer.getData('text/plain'));
+      const to = over ? Number(over.dataset.index) : items.length - 1;
+      move(from, to); // ...and render() draws the result. The DOM is never patched.
+    });
+
+    list.addEventListener('dragend', () => {
+      dragFrom = null;
+      render(); // clears the dragging/drop-target decorations
+    });
+
+    // ============================================================
+    // 5. FEATURES THAT ARE NOW FREE — because the state is plain data.
+    // ============================================================
+    function save() {
+      localStorage.setItem('day-order-v2', JSON.stringify(items));
+    }
+
+    function load() {
+      try {
+        const stored = JSON.parse(localStorage.getItem('day-order-v2'));
+        return Array.isArray(stored) && stored.length > 0 ? stored : DEFAULT_ITEMS;
+      } catch {
+        return DEFAULT_ITEMS; // stored data is input too (project 63)
+      }
+    }
+
+    document.getElementById('print').onclick = () => {
+      const onScreen = [...list.children].map((li) => li.firstChild.textContent);
+      document.getElementById('out').textContent =
+        `items array: ${items.map((item) => item.text).join(' → ')}\n` +
+        `on screen:   ${onScreen.join(' → ')}\n\n` +
+        'They agree, and always will: the second line was DRAWN from the first.';
+    };
+
+    document.getElementById('save').onclick = () => {
+      save();
+      document.getElementById('out').textContent =
+        `Saved: ${items.map((item) => item.text).join(' → ')}\n` +
+        'Reload — it comes back. (Every change already saves itself at the end of\n' +
+        'render(); serializing plain data is two lines, so why not.)';
+    };
+
+    document.getElementById('reload').onclick = () => location.reload();
+
+    render(); // first paint
+  </script>
+</body>
+</html>

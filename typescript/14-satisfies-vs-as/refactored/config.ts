@@ -28,7 +28,7 @@ export const routes = {
 // checked: every value must be a string. BUT the type of `routes`
 // keeps its literal keys — so key typos are now compile errors:
 
-export const adminPath = routes.admin; // '/admin', autocompleted
+export const adminPath = routes.admin; // string; routes. autocompletes, routes.amdin errors
 
 // Where `as` is still LEGITIMATE (rare, and both are one-way-safe):
 //   - any -> unknown  (removing capability, ts#13)

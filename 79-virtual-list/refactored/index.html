@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Big list (refactored)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 640px; margin: 24px auto; }
+    #stats { font: 12px monospace; background: #000; color: #0f0; padding: 8px; }
+    #viewport { height: 400px; overflow-y: auto; border: 1px solid #ccc; margin-top: 12px; }
+    .row { height: 32px; box-sizing: border-box; padding: 6px 10px; border-bottom: 1px solid #eee;
+           display: flex; justify-content: space-between; font-size: 14px; }
+    .row:hover { background: #f4f8ff; }
+    .amount { font: 13px monospace; color: #444; }
+    button { font: inherit; margin-top: 12px; }
+    p.note { color: #555; font-size: 13px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <h1>10,000 transactions</h1>
+  <div id="stats"></div>
+  <button id="sort">Sort by amount ↓</button>
+  <button id="jump">Jump to row 9,000</button>
+  <button id="million">Make it 1,000,000 rows</button>
+  <div id="viewport">
+    <div id="top-spacer"></div>
+    <div id="list"></div>
+    <div id="bottom-spacer"></div>
+  </div>
+  <p class="note">
+    Same list, same scrollbar, same row height — but the green box says about
+    18 rows exist. Scroll to the bottom, sort, jump, or press the million
+    button: the number of rows in the DOM never moves.
+  </p>
+
+  <script>
+    // --- inline copy of refactored/window.js (tested in window.test.js;
+    //     file:// pages can't import modules) -----------------------
+    function computeWindow(scrollTop, rowHeight, viewportHeight, total, overscan = 2) {
+      if (total <= 0) return { start: 0, end: 0, topSpacer: 0, bottomSpacer: 0 };
+      const maxScrollTop = Math.max(0, total * rowHeight - viewportHeight);
+      const clamped = Math.min(Math.max(scrollTop, 0), maxScrollTop);
+      const firstVisible = Math.floor(clamped / rowHeight);
+      const rowsOnScreen = Math.ceil(viewportHeight / rowHeight) + 1;
+      const start = Math.max(0, firstVisible - overscan);
+      const end = Math.min(total, firstVisible + rowsOnScreen + overscan);
+      return {
+        start, end,
+        topSpacer: start * rowHeight,
+        bottomSpacer: (total - end) * rowHeight,
+      };
+    }
+
+    // ============================================================
+    // 1. STATE — the data. All of it, however big. Data is cheap;
+    //    it's ELEMENTS that are expensive.
+    // ============================================================
+    const ROW_HEIGHT = 32; // must match the .row height in the CSS
+    let rows = makeRows(10_000);
+
+    function makeRows(count) {
+      return Array.from({ length: count }, (_, i) => ({
+        id: i,
+        label: `Transaction #${i}`,
+        amount: (i * 7919) % 1000,
+      }));
+    }
+
+    const viewport = document.getElementById('viewport');
+    const list = document.getElementById('list');
+    const topSpacer = document.getElementById('top-spacer');
+    const bottomSpacer = document.getElementById('bottom-spacer');
+
+    // ============================================================
+    // 2. RENDER — a function of (state, scroll position). It asks the
+    //    pure function which slice to draw, draws exactly that, and
+    //    lets two empty divs impersonate everything else.
+    // ============================================================
+    let renders = 0;
+
+    function render() {
+      const started = performance.now();
+      const view = computeWindow(viewport.scrollTop, ROW_HEIGHT, viewport.clientHeight, rows.length);
+
+      topSpacer.style.height = `${view.topSpacer}px`;
+      bottomSpacer.style.height = `${view.bottomSpacer}px`;
+
+      list.replaceChildren(...rows.slice(view.start, view.end).map(makeRow));
+
+      renders++;
+      const ms = performance.now() - started;
+      document.getElementById('stats').textContent =
+        `rows in data: ${rows.length.toLocaleString()}` +
+        `  ·  rows in DOM: ${list.children.length}` +
+        `  ·  DOM nodes: ${document.getElementsByTagName('*').length}` +
+        `  ·  render ${ms.toFixed(1)}ms  ·  renders: ${renders}`;
+    }
+
+    function makeRow(item) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      const label = document.createElement('span');
+      label.textContent = item.label;
+      const amount = document.createElement('span');
+      amount.className = 'amount';
+      amount.textContent = `$${item.amount}`;
+      row.append(label, amount);
+      return row;
+    }
+
+    // ============================================================
+    // 3. EVENTS — one listener for the whole list instead of one per
+    //    row (event delegation): the click bubbles up to the container,
+    //    and the container works out which row it came from. Ten
+    //    thousand listeners was never necessary; one is enough, and it
+    //    keeps working for rows that don't exist yet.
+    // ============================================================
+    list.addEventListener('click', (event) => {
+      const row = event.target.closest('.row');
+      if (row) document.getElementById('stats').textContent = `clicked ${row.textContent}`;
+    });
+
+    // Scrolling fires far faster than the screen refreshes, so coalesce:
+    // at most one render per animation frame (project 73's lesson —
+    // let the frame be the interval instead of guessing a millisecond).
+    let frameQueued = false;
+    viewport.addEventListener('scroll', () => {
+      if (frameQueued) return;
+      frameQueued = true;
+      requestAnimationFrame(() => {
+        frameQueued = false;
+        render();
+      });
+    }, { passive: true });
+
+    // ============================================================
+    // 4. ACTIONS — change the data, re-render. Sorting is now
+    //    genuinely instant, because sorting was never the slow part.
+    // ============================================================
+    document.getElementById('sort').onclick = () => {
+      rows = [...rows].sort((a, b) => b.amount - a.amount);
+      render();
+    };
+
+    document.getElementById('jump').onclick = () => {
+      viewport.scrollTop = 9000 * ROW_HEIGHT; // the scroll event re-renders
+    };
+
+    document.getElementById('million').onclick = () => {
+      rows = makeRows(1_000_000);
+      viewport.scrollTop = 0;
+      render();
+    };
+
+    render(); // first paint
+  </script>
+</body>
+</html>

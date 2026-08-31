@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 52 — accessible modal (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .box { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 6px 0; }
+          .row { margin: 8px 0; }
+          /* A LOUD focus ring, on purpose: this project is about watching
+             focus move. Never ship `outline: none` without a replacement. */
+          :focus { outline: 3px solid #0a58ca; outline-offset: 2px; }
+          .tracker { position: sticky; top: 0; background: #fffbe6;
+                     border: 1px solid #e0c200; border-radius: 8px;
+                     padding: 8px; margin-bottom: 10px; font-family: monospace; }
+          .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); }
+          .dialog { position: fixed; top: 20%; left: 50%; transform: translateX(-50%);
+                    width: 320px; background: #fff; border-radius: 8px; padding: 16px; }
+          .dialog .x { float: right; border: none; background: none; font-size: 18px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <div id="modal-root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ==== RULES — a copy of focus.js, which is unit-tested in Node
+    // (browsers can't import modules from file:// pages; a bundler
+    // would import it). Note: zero React and zero DOM below this
+    // comment — deciding WHICH element gets focus is arithmetic; the
+    // doing (el.focus()) is one line, further down.
+    const FOCUSABLE_SELECTOR = [
+      'a[href]', 'button', 'input', 'select', 'textarea', '[tabindex]',
+    ].join(', ');
+
+    function isFocusable(el) {
+      if (!el) return false;
+      if (el.disabled) return false;
+      if (el.hidden) return false;
+      if (el.inHiddenSubtree) return false;                       // display:none ancestor
+      if (typeof el.tabIndex === 'number' && el.tabIndex < 0) return false;
+      if (el.type === 'hidden') return false;
+      if (el.tag === 'a' && !el.href) return false;
+      return true;
+    }
+
+    function getFocusable(candidates) {
+      return Array.from(candidates ?? []).filter(isFocusable);
+    }
+
+    function firstFocusable(list) {
+      const focusable = getFocusable(list);
+      return focusable.length > 0 ? focusable[0] : null;
+    }
+
+    function lastFocusable(list) {
+      const focusable = getFocusable(list);
+      return focusable.length > 0 ? focusable[focusable.length - 1] : null;
+    }
+
+    function nextFocusIndex(currentIndex, count, { shift = false } = {}) {
+      if (count <= 0) return -1;
+      if (currentIndex < 0 || currentIndex >= count) return shift ? count - 1 : 0;
+      const step = shift ? -1 : 1;
+      return (currentIndex + step + count) % count;
+    }
+
+    // ==== The one place the DOM is asked anything =================
+    // The pure rules read flags; the browser is what knows whether an
+    // ancestor is display:none (offsetParent === null). Answer those
+    // questions here, decide there.
+    function toCandidate(el) {
+      return {
+        el,
+        tag: el.tagName.toLowerCase(),
+        disabled: el.disabled,
+        hidden: el.hidden,
+        tabIndex: el.tabIndex,
+        type: el.type,
+        href: el.getAttribute('href'),
+        // null offsetParent means "no layout box" — display:none, here or
+        // on an ancestor. (It's also null for position:fixed elements;
+        // real libraries check computed styles instead.)
+        inHiddenSubtree: el.offsetParent === null,
+      };
+    }
+
+    // ==== The pedagogical device: what has focus right now? =========
+    function describeFocus() {
+      const el = document.activeElement;
+      if (!el || el === document.body) return '<body> (nothing focused)';
+      const label = el.getAttribute('aria-label') || el.value || el.textContent || '';
+      return `<${el.tagName.toLowerCase()}> ${label.trim().slice(0, 30)}`;
+    }
+
+    function FocusTracker() {
+      const [focused, setFocused] = useState(describeFocus);
+      useEffect(() => {
+        const update = () => setFocused(describeFocus());
+        document.addEventListener('focusin', update);
+        return () => document.removeEventListener('focusin', update); // 18
+      }, []);
+      return <div className="tracker">focus: {focused}</div>;
+    }
+
+    // ==== A real dialog: focus, keyboard, roles ====================
+    function Modal({ titleId, title, onClose, children }) {
+      const dialogRef = useRef(null);
+      const returnFocusRef = useRef(null);
+
+      // Recomputed on every keypress, never cached: dialogs grow
+      // buttons while they're open (validation errors, "add another"),
+      // and a stale list silently skips them.
+      function focusableNow() {
+        const dialog = dialogRef.current;
+        if (!dialog) return [];
+        const candidates = Array.from(dialog.querySelectorAll(FOCUSABLE_SELECTOR));
+        return getFocusable(candidates.map(toCandidate)).map((c) => c.el);
+      }
+
+      // Job 1: move focus IN on open, and put it BACK on close. The
+      // cleanup function is the restore — project 18's pairing, doing
+      // real work rather than tidying up.
+      useEffect(() => {
+        returnFocusRef.current = document.activeElement;    // the button we came from
+        const first = focusableNow()[0];
+        if (first) first.focus();
+        return () => {
+          const target = returnFocusRef.current;
+          if (target && typeof target.focus === 'function') target.focus();
+        };
+      }, []);
+
+      // Job 2: own the keyboard while open — Escape leaves, Tab wraps.
+      useEffect(() => {
+        function onKeyDown(event) {
+          if (event.key === 'Escape') {
+            onClose();
+            return;
+          }
+          if (event.key !== 'Tab') return;
+          const list = focusableNow();
+          const next = nextFocusIndex(
+            list.indexOf(document.activeElement),
+            list.length,
+            { shift: event.shiftKey },
+          );
+          if (next === -1) return;          // empty dialog: let the browser cope
+          event.preventDefault();           // we choose, not the browser
+          list[next].focus();
+        }
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown); // 18
+      }, [onClose]);
+
+      // Job 3: say what this IS. role + aria-modal + aria-labelledby
+      // turn an anonymous <div> into "Edit profile, dialog" in a screen
+      // reader. The portal (project 38) puts the pixels above every
+      // clipping ancestor.
+      return ReactDOM.createPortal(
+        <div>
+          <div className="backdrop" onClick={onClose}></div>
+          <div className="dialog" role="dialog" aria-modal="true"
+               aria-labelledby={titleId} ref={dialogRef}>
+            {/* An icon button has no text to announce — aria-label
+                supplies the name a screen reader reads: "Close, button". */}
+            <button className="x" onClick={onClose} aria-label="Close">×</button>
+            <h3 id={titleId}>{title}</h3>
+            {children}
+            <button onClick={onClose}>Cancel</button>
+          </div>
+        </div>,
+        document.getElementById('modal-root'),
+      );
+    }
+
+    // ==== The page behind the dialog (identical to the original) ====
+    function SettingsPanel({ onOpenDialog }) {
+      return (
+        <div className="box">
+          <h2>Settings</h2>
+          <div className="row">
+            <label htmlFor="email">Email </label>
+            <input id="email" type="email" defaultValue="ada@example.org" />
+          </div>
+          <div className="row">
+            <label htmlFor="theme">Theme </label>
+            <select id="theme" defaultValue="light">
+              <option value="light">light</option>
+              <option value="dark">dark</option>
+            </select>
+          </div>
+          <div className="row">
+            <button onClick={onOpenDialog}>Edit profile…</button>{' '}
+            <button>Save settings</button>{' '}
+            <a href="#help">Help</a>
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [open, setOpen] = useState(false);
+
+      return (
+        <div>
+          <h1>Account</h1>
+          <FocusTracker />
+          <SettingsPanel onOpenDialog={() => setOpen(true)} />
+          {open && (
+            <Modal titleId="edit-profile-title" title="Edit profile"
+                   onClose={() => setOpen(false)}>
+              <div className="row">
+                <label htmlFor="displayName">Display name </label>
+                <input id="displayName" defaultValue="Ada" />
+              </div>
+              <button onClick={() => setOpen(false)}>Save</button>{' '}
+            </Modal>
+          )}
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Keyboard only again. Open the dialog: focus jumps straight
+            inside, to the × Close button — the first focusable element
+            in the dialog. Press Tab repeatedly — the tracker cycles
+            × → Display name → Save → Cancel → × forever, and never
+            reaches the page behind. Shift+Tab cycles the other way.
+            Escape closes, and focus lands back on "Edit profile…",
+            exactly where you left off. Honest scaling note: real apps
+            should use the native &lt;dialog&gt; element or a
+            battle-tested library (focus-trap, the `inert` attribute),
+            which also hide the background from screen readers and
+            handle quirks these ~40 lines don't — but this IS the
+            mechanism inside them.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

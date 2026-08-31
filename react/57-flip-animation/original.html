@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 57 — teleporting list (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 640px; margin: 40px auto; }
+    .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tile {
+      width: 130px; padding: 12px; border-radius: 8px; cursor: pointer;
+      background: #eef2f7; border: 1px solid #cbd5e0; user-select: none;
+      /* The naive attempt: "just transition everything." */
+      transition: all 300ms ease;
+    }
+    .tile.starred { background: #fff3c4; border-color: #e0b400; }
+    .note { color: #666; font-size: 14px; }
+    button { margin-right: 6px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    const FRUITS = [
+      { id: 'f1', name: 'Apricot' },
+      { id: 'f2', name: 'Fig' },
+      { id: 'f3', name: 'Blackcurrant' },
+      { id: 'f4', name: 'Plum' },
+      { id: 'f5', name: 'Nectarine' },
+      { id: 'f6', name: 'Date' },
+      { id: 'f7', name: 'Persimmon' },
+      { id: 'f8', name: 'Kiwi' },
+    ];
+
+    const shuffle = (list) => {
+      const copy = [...list];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    };
+
+    // Each tile owns whether it is starred. Click one to star it.
+    function Tile({ item }) {
+      const [starred, setStarred] = useState(false);
+      return (
+        <div
+          className={'tile' + (starred ? ' starred' : '')}
+          onClick={() => setStarred((s) => !s)}
+        >
+          {starred ? '⭐ ' : ''}{item.name}
+        </div>
+      );
+    }
+
+    function App() {
+      const [items, setItems] = useState(FRUITS);
+
+      return (
+        <div>
+          <h1>Fruit, rearranged</h1>
+          <p className="note">
+            Star a couple of tiles, then press <b>shuffle</b>. Two things
+            go wrong at once. The tiles don't move — they blink into new
+            text, even though every tile has
+            <code> transition: all 300ms</code>. And the stars stay put
+            while the names slide around underneath them.
+          </p>
+          <p>
+            <button onClick={() => setItems(shuffle(items))}>shuffle</button>
+            <button onClick={() => setItems([...items].sort((a, b) => a.name.localeCompare(b.name)))}>
+              sort A→Z
+            </button>
+            <button onClick={() => setItems([...items].sort((a, b) => a.name.length - b.name.length))}>
+              sort by length
+            </button>
+            <button onClick={() => setItems(FRUITS)}>reset</button>
+          </p>
+          <div className="grid">
+            {/* index as key: position 0 is always the same component */}
+            {items.map((item, index) => (
+              <Tile key={index} item={item} />
+            ))}
+          </div>
+          <p className="note">
+            <b>Why the CSS does nothing:</b> a transition animates a
+            property changing on one element. Reordering a list isn't a
+            property change — it's different content in the same boxes.
+            The boxes never move, so <code>transition: all</code> has
+            nothing to interpolate, and the user sees a teleport.
+          </p>
+          <p className="note">
+            <b>Why the stars are wrong:</b> <code>key={'{index}'}</code>
+            tells React "the tile at position 3 is the same tile as
+            before". It keeps the component (and its
+            <code> starred</code> state) parked at that position and
+            swaps the <code>item</code> prop instead. Project 03's bug,
+            and also the reason a real animation is impossible here:
+            there is no element that "is" Fig to move.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

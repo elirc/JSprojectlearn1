@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 56 — kanban that moves DOM nodes (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 780px; margin: 40px auto; }
+    .board { display: flex; gap: 10px; align-items: flex-start; }
+    .column { flex: 1; background: #f4f5f7; border-radius: 8px; padding: 8px; min-height: 160px; }
+    .column h3 { margin: 0 0 8px; font-size: 14px; color: #555; }
+    .cards { min-height: 120px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 6px;
+            padding: 8px; margin-bottom: 6px; cursor: grab; }
+    pre { background: #111; color: #0f0; padding: 10px; border-radius: 6px;
+          font-size: 12px; overflow-x: auto; }
+    .note { color: #666; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef } = React;
+
+    // A kanban board. React renders it from state ONCE, and then the
+    // drag-and-drop code moves DOM nodes around behind React's back
+    // with appendChild — the jQuery reflex (project 15) applied to the
+    // most tempting gesture in the browser.
+    const initialBoard = {
+      columns: [
+        { id: 'todo',  title: 'To do',  cardIds: ['c1', 'c2', 'c3'] },
+        { id: 'doing', title: 'Doing',  cardIds: ['c4'] },
+        { id: 'done',  title: 'Done',   cardIds: ['c5'] },
+      ],
+      cards: {
+        c1: { id: 'c1', text: 'Write the spec' },
+        c2: { id: 'c2', text: 'Buy more coffee' },
+        c3: { id: 'c3', text: 'Fix the login bug' },
+        c4: { id: 'c4', text: 'Review the PR' },
+        c5: { id: 'c5', text: 'Ship 1.0' },
+      },
+    };
+
+    function App() {
+      const [board] = useState(initialBoard);   // never updated. Ever.
+      const [renders, setRenders] = useState(0);
+      const [log, setLog] = useState('(nothing logged yet)');
+      const draggedEl = useRef(null);
+
+      function handleDragStart(e) {
+        draggedEl.current = e.currentTarget;
+        // "Lift" the card out of the board while it's being dragged.
+        // setTimeout(0) because hiding it synchronously cancels the drag.
+        setTimeout(() => {
+          if (draggedEl.current) draggedEl.current.style.display = 'none';
+        }, 0);
+      }
+
+      function handleDragOver(e) {
+        e.preventDefault();   // copied from a tutorial; nobody here knows why
+      }
+
+      function handleDrop(e) {
+        e.preventDefault();
+        const list = e.currentTarget.querySelector('.cards');
+        list.appendChild(draggedEl.current);        // THE MOVE: pure DOM
+        draggedEl.current.style.display = '';
+        draggedEl.current = null;
+        // ...and React's `board` state? Untouched. It has no idea.
+      }
+
+      function logState() {
+        const summary = board.columns
+          .map((col) => col.title + ': ' + col.cardIds
+            .map((id) => board.cards[id].text).join(', '))
+          .join('\n');
+        setLog(summary);
+      }
+
+      return (
+        <div>
+          <h1>Kanban (DOM edition)</h1>
+          <p className="note">
+            Drag a card to another column. Then click <b>log state</b>:
+            React still thinks nothing moved. Then click <b>re-render</b>:
+            the board snaps back to what state says, and your move is gone.
+            Now drag a card and drop it on this paragraph instead of a
+            column — the card vanishes entirely.
+          </p>
+          <div className="board" key={renders}>
+            {board.columns.map((col) => (
+              <div
+                className="column"
+                key={col.id}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
+                <h3>{col.title}</h3>
+                <div className="cards">
+                  {col.cardIds.map((id) => (
+                    <div
+                      className="card"
+                      key={id}
+                      draggable
+                      onDragStart={handleDragStart}
+                    >
+                      {board.cards[id].text}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <p>
+            <button onClick={logState}>log state (what React thinks)</button>{' '}
+            <button onClick={() => setRenders((n) => n + 1)}>re-render</button>
+          </p>
+          <pre>{log}</pre>
+          <p className="note">
+            The screen and the state disagree, and only one of them can be
+            saved, undone, counted, or sent to a server. Guess which one
+            the drag handler updated.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

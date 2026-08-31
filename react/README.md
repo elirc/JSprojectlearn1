@@ -1,4 +1,4 @@
-# React track — 50 projects
+# React track — 60 projects
 
 Same method as the JS track: every folder has a **working but flawed** `original.html`,
 a `refactored/` version, and a `README.md` explaining what changed and why. The flaw
@@ -88,6 +88,23 @@ extract pure logic (reducers) into `.js` modules tested with `node --test` — t
 | 48 | quiz-react | js#47's quiz rebuilt idiomatically — compare them |
 | 49 | todo-capstone | js#14 full circle: reducer, filters, persistence |
 | 50 | build-your-own-hooks | Implement useState/useEffect in ~50 lines — demystified |
+
+### Extended set: real-world patterns (51–60)
+| # | Project | Lesson |
+|---|---------|--------|
+| 51 | use-sync-external-store | Effect-based subscriptions tear; useSyncExternalStore doesn't |
+| 52 | accessible-modal-focus | A div is not a dialog: focus traps, aria, Escape |
+| 53 | keyboard-nav-menu | Roving tabindex — keyboard interaction as a state problem |
+| 54 | list-virtualization | 5,000 rows vs windowed rendering (js#79 in React) |
+| 55 | infinite-scroll | Scroll-handler math vs IntersectionObserver + a status reducer |
+| 56 | drag-drop-kanban | DOM-mutating drag vs state-driven moves (js#64, react#15) |
+| 57 | flip-animation | Teleporting reorders vs the FLIP technique + useLayoutEffect |
+| 58 | command-palette | One 200-line component vs commands-as-data + composition |
+| 59 | offline-first-notes | Fetch-per-click vs local truth + a pending-ops sync queue |
+| 60 | testable-components | The capstone: extract every decision until the component is a shell |
+
+Each project also has `LEARN.md` (beginner guide) and `PRACTICE.md` (graded
+exercises + solutions); this folder has `HANDBOOK.md` and `QUIZ.md` too.
 
 ## The React one big idea
 

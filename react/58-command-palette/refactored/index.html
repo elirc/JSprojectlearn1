@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 58 — command palette, composed (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 640px; margin: 40px auto; }
+    body.dark { background: #1a202c; color: #e2e8f0; }
+    .backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+                display: flex; align-items: flex-start; justify-content: center; }
+    .palette { margin-top: 12vh; width: 460px; background: #fff; color: #111;
+               border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,0.35); overflow: hidden; }
+    .palette input { width: 100%; box-sizing: border-box; border: 0; padding: 14px;
+                     font-size: 16px; outline: none; border-bottom: 1px solid #eee; }
+    .palette li { list-style: none; padding: 10px 14px; cursor: pointer; }
+    .palette li.active { background: #e6f0ff; }
+    .palette ul { margin: 0; padding: 0; max-height: 260px; overflow-y: auto; }
+    .log { background: #f4f5f7; border-radius: 6px; padding: 10px; min-height: 60px; }
+    body.dark .log { background: #2d3748; }
+    .note { color: #888; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useLayoutEffect } = React;
+
+    // ==== THE DECISIONS — a copy of palette.js, which is unit-tested in
+    // Node (browsers can't import modules from file:// pages; a bundler
+    // would import it). Zero React below this comment, and zero DOM.
+    function fuzzyMatch(query, text) {
+      const q = String(query).trim().toLowerCase();
+      const t = String(text).toLowerCase();
+      if (q === '') return { score: 0, positions: [] };
+      const positions = [];
+      let score = 0, from = 0, prev = -2;
+      for (const ch of q) {
+        if (ch === ' ') continue;
+        const found = t.indexOf(ch, from);
+        if (found === -1) return null;
+        score += 1;
+        if (found === prev + 1) score += 4;                          // consecutive
+        if (found === 0 || /[\s\-_.]/.test(t[found - 1])) score += 3; // word start
+        positions.push(found);
+        prev = found;
+        from = found + 1;
+      }
+      if (positions.length === 0) return { score: 0, positions: [] };
+      return { score: score * 100 - positions[0], positions };
+    }
+
+    function rankCommands(commands, query) {
+      if (String(query).trim() === '') return commands;
+      return commands
+        .map((cmd) => {
+          const titleMatch = fuzzyMatch(query, cmd.title);
+          let best = titleMatch && { ...titleMatch, onTitle: true };
+          for (const keyword of cmd.keywords || []) {
+            const m = fuzzyMatch(query, keyword);
+            if (m && (!best || m.score > best.score)) best = { ...m, onTitle: false };
+          }
+          if (!best) return null;
+          return { ...cmd, score: best.score, positions: best.onTitle ? best.positions : [] };
+        })
+        .filter(Boolean)
+        .sort((a, b) => b.score - a.score);
+    }
+
+    function matchesCombo(combo, event) {
+      const parts = String(combo).toLowerCase().split('+').map((p) => p.trim());
+      const key = parts[parts.length - 1];
+      const mods = new Set(parts.slice(0, -1));
+      if (mods.has('mod') !== Boolean(event.ctrlKey || event.metaKey)) return false;
+      if (mods.has('shift') !== Boolean(event.shiftKey)) return false;
+      if (mods.has('alt') !== Boolean(event.altKey)) return false;
+      return String(event.key || '').toLowerCase() === key;
+    }
+
+    // THE REGISTRY. Adding a command is adding one object here. That is
+    // the whole diff — no filter to teach, no if-chain to extend, no
+    // icon lookup to update, no key handler to touch.
+    const COMMANDS = [
+      { id: 'theme.toggle', title: 'Toggle dark mode', icon: '🌗',
+        keywords: ['theme', 'appearance', 'night', 'light'],
+        run: (a) => a.toggleTheme() },
+      { id: 'font.increase', title: 'Increase font size', icon: '🔍',
+        keywords: ['bigger', 'zoom in', 'text'],
+        run: (a) => a.setFontSize((size) => Math.min(size + 2, 32)) },
+      { id: 'font.decrease', title: 'Decrease font size', icon: '🔍',
+        keywords: ['smaller', 'zoom out', 'text'],
+        run: (a) => a.setFontSize((size) => Math.max(size - 2, 10)) },
+      { id: 'font.reset', title: 'Reset font size', icon: '↩️',
+        keywords: ['default', 'text'],
+        run: (a) => a.setFontSize(() => 16) },
+      { id: 'log.hello', title: 'Say hello', icon: '👋',
+        keywords: ['greet', 'wave'],
+        run: (a) => a.log('hello 👋') },
+      { id: 'log.clear', title: 'Clear the log', icon: '🧹',
+        keywords: ['empty', 'erase', 'delete'],
+        run: (a) => a.clearLog() },
+      { id: 'help.about', title: 'About this palette', icon: '❔',
+        keywords: ['help', 'info', 'version'],
+        run: (a) => a.log('A command palette in about 90 lines of glue.') },
+    ];
+
+    // ==== THE GLUE — one hook that knows about keyboards, and nothing
+    // else in the app that does.
+    function useGlobalKey(combo, handler, { enabled = true } = {}) {
+      const latest = useRef(handler);
+      // The latest-ref pattern (project 25): the listener is subscribed
+      // once, but always calls the newest handler — so no stale closures
+      // (project 11) and no re-subscribing on every keystroke.
+      useLayoutEffect(() => { latest.current = handler; });
+
+      useEffect(() => {
+        if (!enabled) return;
+        const onKeyDown = (event) => {
+          if (!matchesCombo(combo, event)) return;
+          event.preventDefault();
+          latest.current(event);
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown); // project 18
+      }, [combo, enabled]);
+    }
+
+    // ==== THE VIEW — the palette knows how to show a list and move a
+    // cursor. It has never heard of dark mode or font sizes.
+    function Highlighted({ text, positions }) {
+      if (!positions || positions.length === 0) return <>{text}</>;
+      const hit = new Set(positions);
+      return <>{[...text].map((ch, i) =>
+        hit.has(i) ? <b key={i}>{ch}</b> : <span key={i}>{ch}</span>)}</>;
+    }
+
+    function CommandPalette({ commands, onRun, onClose }) {
+      const [query, setQuery] = useState('');
+      const [selected, setSelected] = useState(0);
+
+      const results = rankCommands(commands, query);          // derived, project 09
+      const active = Math.min(selected, Math.max(results.length - 1, 0));
+      const step = (delta) => setSelected(
+        results.length === 0 ? 0 : (active + delta + results.length) % results.length);
+
+      useGlobalKey('escape', onClose);
+      useGlobalKey('arrowdown', () => step(1));
+      useGlobalKey('arrowup', () => step(-1));
+      useGlobalKey('enter', () => { if (results[active]) onRun(results[active]); });
+
+      return (
+        <div className="backdrop" onClick={onClose}>
+          <div className="palette" onClick={(e) => e.stopPropagation()}>
+            <input
+              autoFocus
+              placeholder="Type a command…"
+              value={query}
+              onChange={(e) => { setQuery(e.target.value); setSelected(0); }}
+            />
+            <ul>
+              {results.map((cmd, i) => (
+                <li
+                  key={cmd.id}
+                  className={i === active ? 'active' : ''}
+                  onMouseEnter={() => setSelected(i)}
+                  onClick={() => onRun(cmd)}
+                >
+                  {cmd.icon} <Highlighted text={cmd.title} positions={cmd.positions} />
+                </li>
+              ))}
+              {results.length === 0 && <li className="note">no matches</li>}
+            </ul>
+          </div>
+        </div>
+      );
+    }
+
+    // ==== THE APP — owns state, and publishes the list of things a
+    // command is allowed to do.
+    function App() {
+      const [open, setOpen] = useState(false);
+      const [dark, setDark] = useState(false);
+      const [fontSize, setFontSize] = useState(16);
+      const [log, setLog] = useState(['(nothing yet)']);
+
+      const actions = {
+        toggleTheme: () => setDark((d) => !d),
+        setFontSize: (update) => setFontSize(update),
+        log: (text) => setLog((lines) => [...lines, text]),
+        clearLog: () => setLog([]),
+      };
+
+      useGlobalKey('mod+k', () => setOpen((o) => !o));
+
+      useEffect(() => {
+        document.body.className = dark ? 'dark' : '';
+        document.body.style.fontSize = fontSize + 'px';
+      }, [dark, fontSize]);
+
+      const run = (cmd) => { cmd.run(actions); setOpen(false); };
+
+      return (
+        <div>
+          <h1>Palette demo</h1>
+          <p className="note">
+            Press <b>Ctrl+K</b> (or Cmd+K), type, use ↑ ↓ and Enter. Try
+            <code> tdm</code>, <code>theme</code>, <code>font</code> —
+            matched letters are shown in bold. Adding "Copy the log"
+            here is one object in <code>COMMANDS</code>.
+          </p>
+          <div className="log">
+            {log.map((line, i) => <div key={i}>{line}</div>)}
+          </div>
+          <p className="note">
+            font size {fontSize}px · theme {dark ? 'dark' : 'light'} ·
+            {' '}{COMMANDS.length} commands registered
+          </p>
+          {open && (
+            <CommandPalette
+              commands={COMMANDS}
+              onRun={run}
+              onClose={() => setOpen(false)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

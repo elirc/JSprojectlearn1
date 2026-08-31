@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 51 — useSyncExternalStore (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .box { border: 1px solid #ccc; border-radius: 8px; padding: 10px; margin: 6px 0; }
+          .num { font-size: 30px; font-weight: bold; }
+          .bad { color: #b00; font-weight: bold; } .ok { color: #070; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useSyncExternalStore } = React;
+
+    // ==== THE STORE — a copy of store.js, which is unit-tested in
+    // Node (browsers can't import modules from file:// pages; a
+    // bundler would import it). Note: zero React below this comment.
+    //
+    // Two rules make this object legal for useSyncExternalStore:
+    //   1. getSnapshot() returns an Object.is-STABLE value while
+    //      nothing changes — never a fresh object per call.
+    //   2. subscribe is one stable function identity, which comes
+    //      free from building the store once at module level.
+    function createStore(initialValue) {
+      let state = initialValue;
+      const listeners = new Set();
+
+      return {
+        getSnapshot: () => state,
+        subscribe(listener) {
+          listeners.add(listener);
+          return () => { listeners.delete(listener); };
+        },
+        listenerCount: () => listeners.size,
+        update(next) {
+          const value = typeof next === 'function' ? next(state) : next;
+          if (Object.is(value, state)) return false;   // no change, no work
+          state = value;
+          for (const listener of Array.from(listeners)) {
+            if (listeners.has(listener)) listener();
+          }
+          return true;
+        },
+      };
+    }
+
+    const store = createStore(0);
+
+    function burst() {
+      for (let i = 0; i < 5; i++) setTimeout(() => store.update((c) => c + 1), 0);
+    }
+
+    // Instrumentation only: each panel records what it painted, so the
+    // status line can report on the page whether they agree.
+    const painted = { a: 0, b: 0 };
+
+    // ==== ONE HOOK, ONE CORRECT SUBSCRIPTION ======================
+    // useSyncExternalStore(subscribe, getSnapshot) hands React the
+    // whole job: it subscribes, re-reads the snapshot before it
+    // commits (so no reader can paint a stale value), forces a
+    // synchronous re-render when the store moves, and unsubscribes on
+    // unmount. Both arguments are stable module-level functions, so
+    // React never tears the subscription down and rebuilds it.
+    function useCount() {
+      return useSyncExternalStore(store.subscribe, store.getSnapshot);
+    }
+
+    function PanelA() {
+      const value = useCount();
+      painted.a = value;
+      return (
+        <div className="box">
+          Panel A — useSyncExternalStore
+          <div className="num">{value}</div>
+        </div>
+      );
+    }
+
+    function PanelB() {
+      const value = useCount();     // no direct read of the variable
+      painted.b = value;
+      return (
+        <div className="box">
+          Panel B — useSyncExternalStore
+          <div className="num">{value}</div>
+        </div>
+      );
+    }
+
+    function ToggleablePanel() {
+      const value = useCount();     // React owns the unsubscribe
+      return (
+        <div className="box">
+          Toggleable panel — unsubscribes itself on unmount
+          <div className="num">{value}</div>
+        </div>
+      );
+    }
+
+    function Status({ showToggleable }) {
+      useCount();                   // keeps this line live
+      const agree = painted.a === painted.b;
+
+      // Instrumentation: listeners are added in a commit-time effect,
+      // so read the count AFTER each commit. Setting the same number
+      // twice bails out, so this settles instead of looping.
+      const [live, setLive] = useState(store.listenerCount());
+      useEffect(() => { setLive(store.listenerCount()); });
+
+      const expected = 3 + (showToggleable ? 1 : 0);   // A, B, Status, (toggleable)
+
+      return (
+        <div>
+          <p className={agree ? 'ok' : 'bad'}>
+            panels agree?{' '}
+            {agree ? `✅ yes — both show ${painted.a}` : `❌ no — ${painted.a} vs ${painted.b}`}
+          </p>
+          <p className={live > expected ? 'bad' : 'ok'}>
+            live listeners: {live} — mounted subscribers: {expected}
+            {live > expected ? ' ← LEAK' : ' ← no leak'}
+          </p>
+        </div>
+      );
+    }
+
+    function App() {
+      const [showToggleable, setShowToggleable] = useState(true);
+      const [, forceRender] = useState(0);
+
+      return (
+        <div>
+          <h1>Live counter</h1>
+          <button onClick={() => store.update((c) => c + 1)}>+1</button>{' '}
+          <button onClick={burst}>burst: 5 rapid updates</button>{' '}
+          <button onClick={() => forceRender((n) => n + 1)}>re-render App</button>{' '}
+          <button onClick={() => setShowToggleable((v) => !v)}>
+            {showToggleable ? 'hide' : 'show'} toggleable panel
+          </button>
+
+          <PanelA />
+          <PanelB />
+          {showToggleable && <ToggleablePanel />}
+          <Status showToggleable={showToggleable} />
+
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Same store, same burst button, no tearing: every reader
+            goes through useSyncExternalStore, so React re-reads the
+            snapshot before committing and no panel can paint a number
+            the store has already replaced. "re-render App" changes
+            nothing now — the panels were never relying on it. And the
+            listener count tracks the mounted panels exactly: hide the
+            toggleable panel and it drops by one, because React
+            unsubscribes on unmount without being asked (project 18's
+            cleanup, now the library's job instead of yours). This is
+            also the hook project 41's challenge exercise reached for
+            when context could not do per-slice subscriptions.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

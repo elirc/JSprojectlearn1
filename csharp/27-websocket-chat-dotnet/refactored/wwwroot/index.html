@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="name-overlay">
+    <form id="name-form">
+      <h1>Join the chat</h1>
+      <input id="name-input" placeholder="Your name" maxlength="24" autocomplete="off" autofocus>
+      <button>Join</button>
+    </form>
+  </div>
+
+  <main hidden>
+    <header>
+      <h1>Chat</h1>
+      <span id="status" class="status connecting">connecting…</span>
+    </header>
+    <div id="messages" aria-live="polite"></div>
+    <form id="send-form" autocomplete="off">
+      <input id="text" placeholder="Say something…" aria-label="Message">
+      <button>Send</button>
+    </form>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>

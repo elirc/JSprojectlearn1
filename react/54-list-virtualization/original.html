@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 54 — 5,000 rows (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .scroller { height: 400px; overflow: auto; border: 1px solid #ccc; border-radius: 8px; }
+          .row { height: 40px; box-sizing: border-box; display: flex; align-items: center;
+                 gap: 10px; padding: 0 10px; border-bottom: 1px solid #eee; }
+          .avatar { width: 24px; height: 24px; border-radius: 50%; background: #dde3ec;
+                    color: #445; font-size: 11px; display: flex; align-items: center;
+                    justify-content: center; flex: 0 0 auto; }
+          .name { font-size: 14px; flex: 0 0 130px; }
+          .email { font-size: 12px; color: #888; flex: 1 1 auto; }
+          .badge { font-size: 11px; background: #eef; color: #446; border-radius: 10px; padding: 2px 8px; }
+          .readout { font-family: monospace; font-size: 13px; color: #444; margin: 8px 0; min-height: 34px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useMemo, useRef, useLayoutEffect } = React;
+
+    // ==== DATA — generated, deterministic, identical on both pages ====
+    const FIRST = ['Ada', 'Grace', 'Alan', 'Linus', 'Barbara', 'Edsger',
+                   'Donald', 'Margaret', 'Ken', 'Dennis', 'Radia', 'Leslie'];
+    const LAST = ['Lovelace', 'Hopper', 'Turing', 'Torvalds', 'Liskov', 'Dijkstra',
+                  'Knuth', 'Hamilton', 'Thompson', 'Ritchie', 'Perlman', 'Lamport'];
+    const TEAM = ['platform', 'payments', 'search', 'mobile', 'infra', 'design'];
+
+    function makeRows(n) {
+      const rows = [];
+      for (let i = 0; i < n; i++) {
+        const first = FIRST[i % FIRST.length];
+        const last = LAST[(i * 7) % LAST.length];
+        rows.push({
+          id: i,
+          name: first + ' ' + last,
+          email: first.toLowerCase() + '.' + last.toLowerCase() + i + '@example.com',
+          team: TEAM[(i * 5) % TEAM.length],
+          initials: first[0] + last[0],
+        });
+      }
+      return rows;
+    }
+    const ROWS = makeRows(5000);
+
+    // ==== THE MEASURING INSTRUMENT ==================================
+    // The readout writes straight to a DOM node instead of calling
+    // setState. That is deliberate: if measuring the render caused
+    // another render, the instrument would be part of the experiment.
+    // (This is the one honest use of a ref-to-the-DOM in the project —
+    // project 15's rule is "don't drive UI this way", not "never".)
+    function useRenderClock(scrollerRef) {
+      const startedAt = performance.now();     // top of every render
+      const readoutRef = useRef(null);
+      const historyRef = useRef([]);
+      const lastReasonRef = useRef(null);
+
+      useLayoutEffect(() => {
+        // Reading a layout property forces the browser to finish laying
+        // out the rows we just committed, so the number below includes
+        // the browser's work and not just React's.
+        if (scrollerRef.current) void scrollerRef.current.scrollHeight;
+        const ms = performance.now() - startedAt;
+        historyRef.current = [ms, ...historyRef.current].slice(0, 5);
+        if (readoutRef.current) {
+          readoutRef.current.textContent =
+            'last render: ' + ms.toFixed(1) + ' ms\n' +
+            'recent:      ' + historyRef.current.map((n) => n.toFixed(1)).join('  ');
+        }
+      });
+
+      return readoutRef;
+    }
+
+    function Row({ row }) {
+      return (
+        <div className="row">
+          <div className="avatar">{row.initials}</div>
+          <div className="name">{row.name}</div>
+          <div className="email">{row.email}</div>
+          <div className="badge">{row.team}</div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [query, setQuery] = useState('');
+      const scrollerRef = useRef(null);
+      const readoutRef = useRenderClock(scrollerRef);
+
+      // The filtering is memoized (project 27) and it does not help,
+      // because filtering was never the expensive part. The expense is
+      // below: 5,000 rows go into JSX, React reconciles 5,000 elements,
+      // and the browser lays out and paints ~25,000 DOM nodes. A faster
+      // filter cannot fix a DOM-sized bill.
+      const visible = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (q === '') return ROWS;
+        return ROWS.filter((r) => r.name.toLowerCase().includes(q) ||
+                                  r.email.toLowerCase().includes(q));
+      }, [query]);
+
+      return (
+        <div>
+          <h1>People</h1>
+          <input value={query} onChange={(e) => setQuery(e.target.value)}
+                 placeholder="filter by name or email" style={{ width: '100%', padding: 6 }} />
+          <div className="readout" ref={readoutRef} style={{ whiteSpace: 'pre' }}></div>
+          <div>rows rendered: <b>{visible.length}</b> of {ROWS.length}</div>
+          <div className="scroller" ref={scrollerRef}>
+            {visible.map((row) => (
+              <Row key={row.id} row={row} />     /* stable key — project 03 */
+            ))}
+          </div>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Type in the filter box and watch the millisecond counter. Every
+            keystroke rebuilds a list of thousands of rows — the numbers you
+            see are the browser laying out DOM nodes nobody can look at,
+            since only ten of them fit in the 400px box. The filter is
+            already memoized; that is not the bill. The bill is the DOM.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

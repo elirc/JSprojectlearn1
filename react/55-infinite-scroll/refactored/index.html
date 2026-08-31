@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 55 — infinite scroll (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .feed { border: 1px solid #ccc; border-radius: 8px; height: 320px;
+                  overflow-y: auto; padding: 0 10px; }
+          .row { padding: 10px 6px; border-bottom: 1px solid #eee; }
+          .note { color: #666; font-style: italic; }
+          .stats { font-family: monospace; font-size: 13px; background: #f6f6f6;
+                   border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+          .good { color: green; font-weight: bold; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useReducer, useRef } = React;
+
+    // ==== A fake API: 5 pages of 20, ~500ms each, no network ==========
+    const PAGE_SIZE = 20;
+    const TOTAL_PAGES = 5;
+
+    function fetchPage(page) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          if (page > TOTAL_PAGES) return resolve({ items: [], hasMore: false });
+          const start = (page - 1) * PAGE_SIZE;
+          const items = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+            id: start + i + 1,
+            title: `Item ${start + i + 1}`,
+          }));
+          resolve({ items, hasMore: page < TOTAL_PAGES });
+        }, 500);
+      });
+    }
+
+    // ==== RULES — a copy of feed.js, which is unit-tested in Node
+    // (browsers can't import modules from file:// pages; a bundler
+    // would import it). Note: zero React below this comment.
+    const initialFeedState = {
+      items: [], page: 0, status: 'idle', error: null, hasMore: true,
+    };
+
+    function feedReducer(state, action) {
+      switch (action.type) {
+        case 'loadStarted': {
+          // THE GUARD, as a rule: asking twice is a no-op, and a no-op
+          // returns the SAME reference so React re-renders nothing.
+          if (!canLoadMore(state)) return state;
+          return { ...state, status: 'loading', error: null };
+        }
+        case 'pageLoaded': {
+          // A reply nobody is waiting for is dropped (project 19).
+          if (state.status !== 'loading') return state;
+          const hasMore = action.hasMore !== false;
+          return {
+            items: [...state.items, ...action.items],
+            page: state.page + 1,
+            status: hasMore ? 'idle' : 'done',
+            error: null,
+            hasMore,
+          };
+        }
+        case 'loadFailed':
+          if (state.status !== 'loading') return state;
+          return { ...state, status: 'error', error: action.error };
+        case 'retried':
+          if (state.status !== 'error') return state;
+          return { ...state, status: 'idle', error: null };
+        case 'reset':
+          return initialFeedState;
+        default:
+          throw new Error(`Unknown action type: ${action.type}`);
+      }
+    }
+
+    function canLoadMore(state) {
+      if (state.status === 'loading') return false; // one at a time
+      if (state.status === 'error') return false;   // until 'retried'
+      if (state.status === 'done') return false;    // ran out, permanently
+      return state.hasMore;
+    }
+
+    // ==== THE HOOK — "tell me when this element is on screen" =========
+    // The browser already knows where every element is, so asking it is
+    // free; measuring the same thing ourselves on every scroll event was
+    // never anything but expensive.
+    //
+    // Deps are a stable ref object and a string, NOT the options object
+    // — an inline `{ rootMargin: '120px' }` at the call site would be a
+    // fresh object every render and would rebuild the observer every
+    // render (project 30). Destructuring into primitives makes the
+    // caller's inline object harmless.
+    function useOnScreen(targetRef, { rootRef, rootMargin = '0px', onCallback } = {}) {
+      const [onScreen, setOnScreen] = useState(false);
+      const onCallbackRef = useRef(onCallback);
+      onCallbackRef.current = onCallback; // latest-ref (project 25)
+
+      useEffect(() => {
+        const target = targetRef.current;
+        if (!target) return;
+        const observer = new IntersectionObserver(
+          (entries) => {
+            if (onCallbackRef.current) onCallbackRef.current();
+            setOnScreen(entries[entries.length - 1].isIntersecting);
+          },
+          { root: rootRef ? rootRef.current : null, rootMargin },
+        );
+        observer.observe(target);
+        return () => observer.disconnect(); // project 18: what you start, you stop
+      }, [targetRef, rootRef, rootMargin]);
+
+      return onScreen;
+    }
+
+    // ==== THE FEED — state decides, effects just do ===================
+    function Feed() {
+      const [state, dispatch] = useReducer(feedReducer, initialFeedState);
+      const [callbacks, setCallbacks] = useState(0);
+      const listRef = useRef(null);
+      const sentinelRef = useRef(null);
+
+      // rootMargin: fire 120px BEFORE the sentinel is really visible, so
+      // the next page is already arriving when the reader gets there.
+      const sentinelVisible = useOnScreen(sentinelRef, {
+        rootRef: listRef,
+        rootMargin: '120px',
+        onCallback: () => setCallbacks((n) => n + 1),
+      });
+
+      const allowed = canLoadMore(state);
+
+      useEffect(() => {
+        if (!sentinelVisible || !allowed) return;
+        const nextPage = state.page + 1;
+        dispatch({ type: 'loadStarted' });
+        // No cancelled-flag bookkeeping here: the reducer already drops
+        // replies that arrive when nothing is loading, so late answers
+        // are handled by the rulebook instead of by every caller.
+        fetchPage(nextPage).then(
+          (res) => dispatch({ type: 'pageLoaded', items: res.items, hasMore: res.hasMore }),
+          (err) => dispatch({ type: 'loadFailed', error: String(err) }),
+        );
+      }, [sentinelVisible, allowed, state.page]);
+
+      const counts = new Map();
+      state.items.forEach((item) => counts.set(item.id, (counts.get(item.id) || 0) + 1));
+      const duplicates = state.items.length - counts.size;
+
+      return (
+        <div>
+          <div className="stats">
+            observer callbacks: {callbacks}<br />
+            pages of data: {state.page} &nbsp;|&nbsp; status: {state.status}<br />
+            duplicate items: <span className={duplicates ? '' : 'good'}>{duplicates}</span>
+          </div>
+          <div className="feed" ref={listRef}>
+            {state.items.map((item) => (
+              // Ids are unique again, so the key can just be the id
+              // (project 03) — no index smuggled in to break a tie.
+              <div key={item.id} className="row">{item.title}</div>
+            ))}
+            {state.status === 'loading' && <div className="row note">loading…</div>}
+            {state.status === 'error' && (
+              <div className="row note">
+                {state.error}{' '}
+                <button onClick={() => dispatch({ type: 'retried' })}>retry</button>
+              </div>
+            )}
+            {state.status === 'done' && (
+              <div className="row note">
+                You've reached the end — {state.items.length} items
+              </div>
+            )}
+            <div ref={sentinelRef} style={{ height: 1 }} />
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      return (
+        <div>
+          <h1>Feed</h1>
+          <Feed />
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Same flick, three different numbers: the observer fires a
+            handful of times instead of hundreds, "pages of data" climbs
+            one at a time because `loadStarted` is a no-op while a load is
+            running, and duplicates stay at 0. Nothing measures scroll
+            geometry any more — the browser volunteers the one fact we
+            wanted. Honest scope notes: `IntersectionObserver` is a
+            browser API, so old browsers and test environments need a
+            polyfill or a scroll fallback; real feeds page by *cursor*
+            rather than page number, because page numbers duplicate and
+            skip rows when items are inserted while you read; and a
+            "load more" button belongs next to this, since infinite
+            scroll is hostile to keyboard users and puts the footer
+            permanently out of reach.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

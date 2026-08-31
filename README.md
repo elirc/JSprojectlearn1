@@ -1,13 +1,20 @@
 # JS Project Learn
 
-**165 projects** that teach **"good code is code that's easy to change"** —
-across three tracks:
+**263 projects** that teach **"good code is code that's easy to change"** —
+across five tracks:
 
 | Track | Projects | Focus |
 |-------|----------|-------|
-| **JavaScript** (this page, below) | 01–73 | Fundamentals, refactoring, state, architecture, async, servers, interpreters |
-| **[React](react/)** | react/01–50 | Components, hooks, effects, performance, patterns |
-| **[TypeScript](typescript/)** | typescript/01–42 | Types that make wrong programs fail to compile |
+| **JavaScript** (this page, below) | 01–85 | Fundamentals, refactoring, state, architecture, async, servers, interpreters |
+| **[React](react/)** | react/01–60 | Components, hooks, effects, performance, patterns, accessibility |
+| **[TypeScript](typescript/)** | typescript/01–52 | Types that make wrong programs fail to compile |
+| **[C# / .NET](csharp/)** | csharp/01–36 | The same lessons in C#, then fullstack web dev with ASP.NET Core |
+| **[DSA](dsa/)** | dsa/01–30 | Solve-it-yourself algorithms & data structures with auto-activating tests |
+
+Every project folder also has a **`LEARN.md`** (beginner guide that teaches the
+concepts the README assumes) and a **`PRACTICE.md`** (graded exercises with
+worked solutions). Each track also has a **`HANDBOOK.md`** reference and a
+50-question **`QUIZ.md`**. New? Read [START-HERE.md](START-HERE.md) first.
 
 Do the JS track first — the React and TypeScript tracks deliberately build on
 its lessons (and literally import some of its code). Each track has its own
@@ -162,6 +169,32 @@ wrong with it, then read the refactor and the README.
 | # | Project | Lesson |
 |---|---------|--------|
 | 73 | [Infinite-scroll gallery](73-infinite-gallery/) | IntersectionObserver over polling; rAF over throttling; virtualized windows |
+
+### Extended set: algorithms meet engineering (74–85)
+| # | Project | Lesson |
+|---|---------|--------|
+| 74 | [Priority queue](74-priority-queue/) | Re-sorting an array every push vs a binary heap |
+| 75 | [Trie autocomplete](75-trie-autocomplete/) | Scanning every word vs a prefix tree |
+| 76 | [Rate limiter](76-rate-limiter/) | Boundary-burst counter bug vs sliding window & token bucket (injected clocks) |
+| 77 | [Text diff](77-diff-text/) | "Everything changed" vs an LCS-based line diff |
+| 78 | [Mini spreadsheet](78-spreadsheet-mini/) | eval-and-pray vs parsed formulas + dependency (topo) order |
+| 79 | [Virtual list](79-virtual-list/) | 10,000 DOM nodes vs windowed rendering math |
+| 80 | [Drag-drop list](80-drag-drop-list/) | DOM-mutating drag vs state-driven reorder |
+| 81 | [Undo tree](81-undo-tree/) | Redo history destroyed vs a branching history tree |
+| 82 | [Canvas bar chart](82-canvas-bar-chart/) | Magic-number drawing vs pure layout + thin draw |
+| 83 | [Event-sourcing bank](83-event-sourcing-bank/) | Mutable balance vs an append-only event log + projections |
+| 84 | [Worker pool](84-worker-pool/) | CPU work freezing the event loop vs worker_threads |
+| 85 | [Streaming log parser](85-streaming-log-parser/) | readFileSync memory spikes vs streams + readline |
+
+## Beyond the project folders
+
+- Every project folder also has **`PRACTICE.md`** — graded exercises with
+  worked solutions (try before peeking).
+- **[dsa/](dsa/)** — 30 solve-it-yourself algorithm problems with starter
+  stubs, auto-activating tests, and full solution walkthroughs.
+- **[HANDBOOK.md](HANDBOOK.md)** and **[QUIZ.md](QUIZ.md)** — the offline
+  JavaScript reference and a 50-question quiz bank (each track has its own
+  pair inside its folder).
 
 ## The one big idea
 

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 55 — infinite scroll by hand (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .feed { border: 1px solid #ccc; border-radius: 8px; height: 320px;
+                  overflow-y: auto; padding: 0 10px; }
+          .row { padding: 10px 6px; border-bottom: 1px solid #eee; }
+          .dupe { outline: 2px solid crimson; background: #fff2f2; }
+          .stats { font-family: monospace; font-size: 13px; background: #f6f6f6;
+                   border-radius: 6px; padding: 8px 10px; margin: 8px 0; }
+          .bad { color: crimson; font-weight: bold; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ==== A fake API: 5 pages of 20, ~500ms each, no network ==========
+    const PAGE_SIZE = 20;
+    const TOTAL_PAGES = 5;
+
+    function fetchPage(page) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          if (page > TOTAL_PAGES) return resolve({ items: [], hasMore: false });
+          const start = (page - 1) * PAGE_SIZE;
+          const items = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+            id: start + i + 1,
+            title: `Item ${start + i + 1}`,
+          }));
+          resolve({ items, hasMore: page < TOTAL_PAGES });
+        }, 500);
+      });
+    }
+
+    // ==== "Load more when near the bottom", done by hand ==============
+    // Every piece of this works. That's what makes it worth studying.
+    function Feed() {
+      const [items, setItems] = useState([]);
+      const [page, setPage] = useState(0);
+      const [hasMore, setHasMore] = useState(true);
+      const [fires, setFires] = useState(0);     // scroll events handled
+      const [requests, setRequests] = useState(0); // fetches started
+      const listRef = useRef(null);
+
+      function loadMore() {
+        setRequests((n) => n + 1);
+        // `page` here is the value from the render that built this
+        // function. Three scroll events inside one 500ms request all see
+        // the SAME `page`, so they all ask for the same next page
+        // (project 11's snapshot, doing damage). Nothing checks whether a
+        // request is already in flight, because there is nowhere to keep
+        // that fact.
+        fetchPage(page + 1).then((res) => {
+          setItems((prev) => [...prev, ...res.items]);
+          setPage(page + 1);
+          setHasMore(res.hasMore);
+        });
+      }
+
+      useEffect(() => { loadMore(); }, []); // first page on mount
+
+      useEffect(() => {
+        const el = listRef.current;
+        function onScroll() {
+          setFires((n) => n + 1);
+          // Three layout reads on EVERY scroll event. The browser has to
+          // stop and measure the page to answer them — dozens of times a
+          // second, while it is already busy scrolling.
+          const distance = el.scrollHeight - el.scrollTop - el.clientHeight;
+          if (distance < 200 && hasMore) {
+            loadMore(); // no "one at a time" guard anywhere
+          }
+        }
+        el.addEventListener('scroll', onScroll);
+        return () => el.removeEventListener('scroll', onScroll);
+        // Re-attached after every page so `page` and `hasMore` stay fresh
+        // — the listener is thrown away and rebuilt five times a session.
+      }, [page, hasMore]);
+
+      // Count ids that arrived more than once. In a correct feed this is 0.
+      const counts = new Map();
+      items.forEach((item) => counts.set(item.id, (counts.get(item.id) || 0) + 1));
+      const duplicates = items.length - counts.size;
+
+      return (
+        <div>
+          <div className="stats">
+            scroll handler fired: {fires} times<br />
+            requests started: {requests} &nbsp;|&nbsp; pages of data: {page}<br />
+            duplicate items: <span className={duplicates ? 'bad' : ''}>{duplicates}</span>
+          </div>
+          <div className="feed" ref={listRef}>
+            {items.map((item, i) => (
+              // Once the bug fires, ids repeat — so a plain key={item.id}
+              // would collide. Needing an index in the key is the smell.
+              <div key={`${item.id}-${i}`}
+                   className={'row' + (counts.get(item.id) > 1 ? ' dupe' : '')}>
+                {item.title}
+              </div>
+            ))}
+            {!hasMore && <div className="row">— end of feed —</div>}
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      return (
+        <div>
+          <h1>Feed</h1>
+          <Feed />
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Flick the scrollbar to the bottom once and read the three
+            counters. The handler fires dozens of times per flick, each
+            fire starts another request for the SAME page, and every reply
+            gets appended — so rows arrive twice (outlined in red) and
+            "requests started" runs far ahead of "pages of data". Nobody
+            is doing anything wrong on any single line; the missing pieces
+            are a cheaper way to ask "am I near the bottom?" and a rule
+            that says "one load at a time".
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 56 — state-driven kanban (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 780px; margin: 40px auto; }
+    .board { display: flex; gap: 10px; align-items: flex-start; }
+    .column { flex: 1; background: #f4f5f7; border-radius: 8px; padding: 8px; min-height: 160px; }
+    .column.over { background: #e3ecf7; }
+    .column h3 { margin: 0 0 8px; font-size: 14px; color: #555; }
+    .cards { min-height: 120px; }
+    .card { background: #fff; border: 1px solid #ddd; border-radius: 6px;
+            padding: 8px; margin-bottom: 6px; cursor: grab; }
+    .card.dragging { opacity: 0.35; }
+    pre { background: #111; color: #0f0; padding: 10px; border-radius: 6px;
+          font-size: 12px; overflow-x: auto; }
+    .note { color: #666; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState } = React;
+
+    // ==== RULES — a copy of board.js, which is unit-tested in Node
+    // (browsers can't import modules from file:// pages; a bundler
+    // would import it). Note: zero React and zero DOM below.
+    const initialBoard = {
+      columns: [
+        { id: 'todo', title: 'To do', cardIds: ['c1', 'c2', 'c3'] },
+        { id: 'doing', title: 'Doing', cardIds: ['c4'] },
+        { id: 'done', title: 'Done', cardIds: ['c5'] },
+      ],
+      cards: {
+        c1: { id: 'c1', text: 'Write the spec' },
+        c2: { id: 'c2', text: 'Buy more coffee' },
+        c3: { id: 'c3', text: 'Fix the login bug' },
+        c4: { id: 'c4', text: 'Review the PR' },
+        c5: { id: 'c5', text: 'Ship 1.0' },
+      },
+    };
+
+    function columnOf(board, cardId) {
+      return board.columns.find((col) => col.cardIds.includes(cardId)) || null;
+    }
+
+    function moveCard(board, cardId, toColumnId, toIndex) {
+      if (!board.cards[cardId]) return board;
+      const to = board.columns.find((col) => col.id === toColumnId);
+      if (!to) return board;                       // dropped off a column: no-op
+
+      const from = columnOf(board, cardId);
+      const wanted = toIndex == null ? to.cardIds.length : toIndex;
+
+      const columns = board.columns.map((col) =>
+        col.cardIds.includes(cardId)
+          ? { ...col, cardIds: col.cardIds.filter((id) => id !== cardId) }
+          : col,
+      );
+      const target = columns.find((col) => col.id === toColumnId);
+
+      const movedDownInPlace =
+        from && from.id === toColumnId && from.cardIds.indexOf(cardId) < wanted;
+      const index = Math.max(
+        0,
+        Math.min(movedDownInPlace ? wanted - 1 : wanted, target.cardIds.length),
+      );
+      const cardIds = [
+        ...target.cardIds.slice(0, index),
+        cardId,
+        ...target.cardIds.slice(index),
+      ];
+      return {
+        ...board,
+        columns: columns.map((col) =>
+          col.id === toColumnId ? { ...col, cardIds } : col,
+        ),
+      };
+    }
+
+    function describeBoard(board) {
+      return board.columns
+        .map((col) => col.title + ': ' +
+          col.cardIds.map((id) => board.cards[id].text).join(', '))
+        .join('\n');
+    }
+
+    // ==== GLUE — the drag events decide NOTHING. They translate a
+    // gesture into (cardId, columnId, index) and hand it to moveCard.
+    function Card({ card, index, columnId, onMove, dragging, setDragging }) {
+      return (
+        <div
+          className={'card' + (dragging ? ' dragging' : '')}
+          draggable
+          onDragStart={(e) => {
+            // The payload is an ID — a string that survives anything.
+            // Never a DOM node, never a global variable.
+            e.dataTransfer.setData('text/plain', card.id);
+            e.dataTransfer.effectAllowed = 'move';
+            setDragging(card.id);
+          }}
+          onDragEnd={() => setDragging(null)}   // always runs, drop or not
+          onDragOver={(e) => e.preventDefault()} // "yes, you may drop on me"
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();                 // this card sets the index
+            const box = e.currentTarget.getBoundingClientRect();
+            const below = e.clientY > box.top + box.height / 2;
+            onMove(e.dataTransfer.getData('text/plain'), columnId,
+                   index + (below ? 1 : 0));
+          }}
+        >
+          {card.text}
+        </div>
+      );
+    }
+
+    function Column({ board, column, onMove, dragging, setDragging }) {
+      const [over, setOver] = useState(false);
+      return (
+        <div
+          className={'column' + (over ? ' over' : '')}
+          onDragOver={(e) => { e.preventDefault(); setOver(true); }}
+          onDragLeave={() => setOver(false)}
+          onDrop={(e) => {
+            e.preventDefault();
+            setOver(false);
+            // Landed on the empty space below the cards: append.
+            onMove(e.dataTransfer.getData('text/plain'), column.id, null);
+          }}
+        >
+          <h3>{column.title} ({column.cardIds.length})</h3>
+          <div className="cards">
+            {column.cardIds.map((id, i) => (
+              <Card
+                key={id}
+                card={board.cards[id]}
+                index={i}
+                columnId={column.id}
+                onMove={onMove}
+                dragging={dragging === id}
+                setDragging={setDragging}
+              />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [board, setBoard] = useState(initialBoard);
+      const [dragging, setDragging] = useState(null);
+      const [log, setLog] = useState('(nothing logged yet)');
+
+      // The only writer in the app. One line, and it's a pure call.
+      const onMove = (cardId, toColumnId, toIndex) =>
+        setBoard((b) => moveCard(b, cardId, toColumnId, toIndex));
+
+      return (
+        <div>
+          <h1>Kanban (state edition)</h1>
+          <p className="note">
+            Drag cards anywhere — between columns, up and down inside one,
+            onto the empty space at the bottom. Then <b>log state</b>: it
+            matches the screen, every time. Drop a card on this paragraph:
+            nothing happens, and nothing is lost, because a drop that isn't
+            on a column simply never calls <code>moveCard</code>.
+          </p>
+          <div className="board">
+            {board.columns.map((col) => (
+              <Column
+                key={col.id}
+                board={board}
+                column={col}
+                onMove={onMove}
+                dragging={dragging}
+                setDragging={setDragging}
+              />
+            ))}
+          </div>
+          <p>
+            <button onClick={() => setLog(describeBoard(board))}>
+              log state (what React thinks)
+            </button>{' '}
+            <button onClick={() => setBoard(initialBoard)}>reset</button>
+          </p>
+          <pre>{log}</pre>
+          <p className="note">
+            The counters in the headings, the reset button and the log are
+            all free: they read the same data the drop handler writes.
+            Because the board is plain JSON, saving it, undoing a move
+            (keep the previous board) or syncing it to a server are the
+            same one-liner. The gesture is browser glue; the move is a
+            pure function.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

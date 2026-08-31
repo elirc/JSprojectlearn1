@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 59 — server-first notes (original)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 40px auto; }
+    .row { display: flex; gap: 12px; align-items: flex-start; }
+    .list { width: 220px; }
+    .list li { list-style: none; padding: 8px; border-radius: 6px; cursor: pointer; }
+    .list li.active { background: #e6f0ff; }
+    .list ul { margin: 0; padding: 0; }
+    .editor { flex: 1; }
+    input, textarea { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+    textarea { height: 140px; }
+    .busy { opacity: 0.45; pointer-events: none; }
+    .banner { background: #ffe3e3; color: #8b1a1a; padding: 8px; border-radius: 6px; }
+    .note { color: #777; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // ==== A FAKE SERVER: slow, and wrong a third of the time. Exactly
+    // like a real one on a train.
+    const FAILURE_RATE = 0.35;
+    let db = {
+      n1: { id: 'n1', title: 'Shopping', body: 'milk, bread' },
+      n2: { id: 'n2', title: 'Ideas', body: 'a notes app that works offline' },
+    };
+    const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+    async function trip() {
+      await sleep(400 + Math.random() * 900);
+      if (Math.random() < FAILURE_RATE) throw new Error('network error');
+    }
+    async function apiList() { await trip(); return JSON.parse(JSON.stringify(db)); }
+    async function apiGet(id) { await trip(); return { ...db[id] }; }
+    async function apiSave(note) { await trip(); db[note.id] = { ...note }; }
+    async function apiDelete(id) { await trip(); delete db[id]; }
+    async function apiCreate() {
+      await trip();
+      const id = 'n' + Math.random().toString(36).slice(2, 7);
+      db[id] = { id, title: 'Untitled', body: '' };
+      return id;
+    }
+
+    // ==== THE APP: the server is the only truth, so every single
+    // interaction is a round trip you can lose.
+    function App() {
+      const [notes, setNotes] = useState({});
+      const [selectedId, setSelectedId] = useState(null);
+      const [draft, setDraft] = useState({ title: '', body: '' });
+      const [busy, setBusy] = useState(true);
+      const [error, setError] = useState(null);
+
+      async function load() {
+        setBusy(true);
+        setError(null);
+        try {
+          setNotes(await apiList());
+        } catch (e) {
+          setError('Could not load your notes.');
+        }
+        setBusy(false);
+      }
+
+      useEffect(() => { load(); }, []);
+
+      // Clicking a note in the list: another round trip, another 35%.
+      async function select(id) {
+        setBusy(true);
+        try {
+          const note = await apiGet(id);
+          setSelectedId(id);
+          setDraft({ title: note.title, body: note.body });
+        } catch (e) {
+          alert('Could not open that note. Try again?');
+        }
+        setBusy(false);
+      }
+
+      async function save() {
+        setBusy(true);
+        try {
+          await apiSave({ id: selectedId, ...draft });
+          setNotes(await apiList());        // and again, to be sure
+        } catch (e) {
+          alert('Save failed. Your changes were not kept.');
+          // Put the editor back to what the server last told us —
+          // which throws away everything the user just typed.
+          const server = notes[selectedId];
+          setDraft({ title: server.title, body: server.body });
+        }
+        setBusy(false);
+      }
+
+      async function remove(id) {
+        setBusy(true);
+        try {
+          await apiDelete(id);
+          if (selectedId === id) { setSelectedId(null); setDraft({ title: '', body: '' }); }
+          setNotes(await apiList());
+        } catch (e) {
+          alert('Delete failed.');
+        }
+        setBusy(false);
+      }
+
+      async function create() {
+        setBusy(true);
+        try {
+          const id = await apiCreate();
+          setNotes(await apiList());
+          await select(id);
+        } catch (e) {
+          alert('Could not create a note.');
+        }
+        setBusy(false);
+      }
+
+      const list = Object.values(notes);
+
+      return (
+        <div>
+          <h1>Notes</h1>
+          <p className="note">
+            The fake server takes up to 1.3s and fails {FAILURE_RATE * 100}%
+            of the time. Type a sentence into a note and press <b>save</b>
+            a few times. Sooner or later an alert eats your paragraph.
+            Meanwhile every click freezes the whole page.
+          </p>
+          {error && (
+            <p className="banner">
+              {error} <button onClick={load}>retry</button>
+            </p>
+          )}
+          <div className={'row' + (busy ? ' busy' : '')}>
+            <div className="list">
+              <button onClick={create}>+ new note</button>
+              <ul>
+                {list.map((note) => (
+                  <li
+                    key={note.id}
+                    className={note.id === selectedId ? 'active' : ''}
+                    onClick={() => select(note.id)}
+                  >
+                    {note.title || '(untitled)'}{' '}
+                    <button onClick={(e) => { e.stopPropagation(); remove(note.id); }}>x</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="editor">
+              {selectedId ? (
+                <div>
+                  <input
+                    value={draft.title}
+                    onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                  />
+                  <textarea
+                    value={draft.body}
+                    onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+                  />
+                  <button onClick={save}>save</button>
+                </div>
+              ) : (
+                <p className="note">Pick a note.</p>
+              )}
+            </div>
+          </div>
+          <p className="note">
+            {busy ? 'talking to the server…' : 'idle'} — and while it says
+            that, nothing on this page can be clicked or typed. Refresh
+            the page with an unsaved edit and it is gone: the only copy
+            of what you typed lived in a React state variable.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

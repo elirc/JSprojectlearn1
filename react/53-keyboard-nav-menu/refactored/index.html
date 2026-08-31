@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 53 — roving tabindex menu (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .menu { position: relative; display: inline-block; }
+          .trigger { border: 1px solid #ccc; border-radius: 6px; padding: 8px 14px;
+                     background: #f7f7f7; font: inherit; cursor: pointer; }
+          .list { position: absolute; top: 100%; left: 0; margin-top: 8px; width: 220px;
+                  border: 1px solid #ccc; border-radius: 6px; background: #fff;
+                  box-shadow: 0 2px 8px rgba(0,0,0,.15); padding: 4px 0; }
+          .item { padding: 8px 14px; cursor: pointer; }
+          .item:hover { background: #eef4ff; }
+          /* The active item is FOCUSED, so it styles itself — one rule for
+             mouse, keyboard, and screen-reader users alike. */
+          .item:focus { background: #dceaff; outline: none; }
+          .item:focus-visible { background: #dceaff; outline: 2px solid #2b6cb0;
+                                outline-offset: -2px; }
+          .trigger:focus-visible { outline: 2px solid #2b6cb0; outline-offset: 2px; }
+          .item[aria-disabled="true"] { color: #aaa; cursor: default; background: none; }
+          .status { font-family: monospace; font-size: 13px; color: #444;
+                    background: #f4f4f4; padding: 6px 10px; border-radius: 4px; margin: 6px 0; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    // ==== RULES — a copy of nav.js, which is unit-tested in Node
+    // (browsers can't import modules from file:// pages; a bundler
+    // would import it). Note: zero React and zero DOM below this
+    // comment. Every key press is just arithmetic on one number.
+    const MENU_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
+
+    function disabledPredicate(disabled) {
+      if (typeof disabled === 'function') return disabled;
+      if (Array.isArray(disabled)) return (i) => disabled.includes(i);
+      return () => false;
+    }
+
+    function seek(start, step, count, isDisabled, loop) {
+      let i = start;
+      for (let attempts = 0; attempts < count; attempts++) {
+        if (i < 0 || i >= count) {
+          if (!loop) return -1;
+          i = i < 0 ? count - 1 : 0;
+        }
+        if (!isDisabled(i)) return i;
+        i += step;
+      }
+      return -1; // every item is disabled
+    }
+
+    function nextIndex(current, key, count, options = {}) {
+      if (count <= 0) return -1;
+      const isDisabled = disabledPredicate(options.disabled);
+      const loop = options.loop !== false;
+      switch (key) {
+        case 'ArrowDown': {
+          const found = seek(current < 0 ? 0 : current + 1, 1, count, isDisabled, loop);
+          return found === -1 ? current : found;
+        }
+        case 'ArrowUp': {
+          const found = seek(current < 0 ? count - 1 : current - 1, -1, count, isDisabled, loop);
+          return found === -1 ? current : found;
+        }
+        case 'Home': {
+          const found = seek(0, 1, count, isDisabled, false);
+          return found === -1 ? current : found;
+        }
+        case 'End': {
+          const found = seek(count - 1, -1, count, isDisabled, false);
+          return found === -1 ? current : found;
+        }
+        default:
+          return current; // the no-op contract
+      }
+    }
+
+    // ==== UI ======================================================
+    const ITEMS = [
+      { label: 'Rename', disabled: false },
+      { label: 'Duplicate', disabled: false },
+      { label: 'Export as CSV', disabled: false },
+      { label: 'Delete (disabled)', disabled: true },
+    ];
+    const DISABLED = (i) => ITEMS[i].disabled;
+
+    function describe(el) {
+      if (!el || el === document.body) return '<body> (nothing focused)';
+      const text = (el.textContent || '').trim().slice(0, 24);
+      return `<${el.tagName.toLowerCase()}> ${text}`;
+    }
+
+    function FocusTracker() {
+      const [where, setWhere] = useState(describe(document.activeElement));
+      useEffect(() => {
+        const onFocus = () => setWhere(describe(document.activeElement));
+        document.addEventListener('focusin', onFocus);
+        document.addEventListener('focusout', onFocus);
+        return () => {                                   // project 18: pair every listener with its removal
+          document.removeEventListener('focusin', onFocus);
+          document.removeEventListener('focusout', onFocus);
+        };
+      }, []);
+      return <div className="status">focus: {where}</div>;
+    }
+
+    function Menu({ onPick }) {
+      const [open, setOpen] = useState(false);
+      const [activeIndex, setActiveIndex] = useState(-1);
+      const triggerRef = useRef(null);
+      const itemRefs = useRef([]);
+
+      // DO: the one imperative line the pure rulebook earns. The
+      // DECISION of which item is active is arithmetic (nextIndex);
+      // moving the browser's focus caret there is a side effect, so it
+      // belongs in an effect, after the render that made the item exist.
+      useEffect(() => {
+        if (!open || activeIndex < 0) return;
+        itemRefs.current[activeIndex]?.focus();
+      }, [open, activeIndex]);
+
+      function close({ restoreFocus }) {
+        setOpen(false);
+        setActiveIndex(-1);
+        if (restoreFocus) triggerRef.current?.focus();
+      }
+
+      function openAt(index) {
+        setOpen(true);
+        setActiveIndex(index);
+      }
+
+      function select(index) {
+        if (index < 0 || ITEMS[index].disabled) return;
+        onPick(ITEMS[index].label);
+        close({ restoreFocus: true });
+      }
+
+      function onTriggerKeyDown(e) {
+        if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();                     // stop the page scrolling / the click double-firing
+          openAt(nextIndex(-1, 'ArrowDown', ITEMS.length, { disabled: DISABLED }));
+        } else if (e.key === 'ArrowUp') {
+          e.preventDefault();
+          openAt(nextIndex(-1, 'ArrowUp', ITEMS.length, { disabled: DISABLED }));
+        } else if (e.key === 'Escape' && open) {
+          e.preventDefault();
+          close({ restoreFocus: false });
+        }
+      }
+
+      function onListKeyDown(e) {
+        if (MENU_KEYS.includes(e.key)) {
+          e.preventDefault();                     // ONLY the keys we handle
+          setActiveIndex((i) => nextIndex(i, e.key, ITEMS.length, { disabled: DISABLED }));
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          select(activeIndex);
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          close({ restoreFocus: true });
+          return;
+        }
+        if (e.key === 'Tab') {
+          // NOT prevented: Tab belongs to the browser. Hand focus back
+          // to the trigger first so the default move continues from
+          // there — the menu is one tab stop, sitting at its button.
+          triggerRef.current?.focus();
+          setOpen(false);
+          setActiveIndex(-1);
+        }
+      }
+
+      // Roving tabindex: exactly ONE item is reachable by Tab, and it is
+      // the active one. Before anything is active, the first enabled
+      // item holds the 0 so the list always has a door.
+      const firstEnabled = nextIndex(-1, 'ArrowDown', ITEMS.length, { disabled: DISABLED });
+      const rovingIndex = activeIndex >= 0 ? activeIndex : firstEnabled;
+
+      return (
+        <div>
+          <div className="menu">
+            <button ref={triggerRef}
+                    className="trigger"
+                    aria-haspopup="menu"
+                    aria-expanded={open}
+                    onKeyDown={onTriggerKeyDown}
+                    onClick={() => (open ? close({ restoreFocus: false }) : setOpen(true))}>
+              Actions ▾
+            </button>
+            {open && (
+              <div className="list" role="menu" aria-label="Document actions"
+                   onKeyDown={onListKeyDown}>
+                {ITEMS.map((item, i) => (
+                  <div key={item.label}
+                       ref={(node) => { itemRefs.current[i] = node; }}
+                       role="menuitem"
+                       aria-disabled={item.disabled || undefined}
+                       tabIndex={i === rovingIndex ? 0 : -1}
+                       className="item"
+                       onMouseEnter={() => !item.disabled && setActiveIndex(i)}
+                       onClick={() => select(i)}>
+                    {item.label}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="status">open: {String(open)} | activeIndex: {activeIndex}</div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [picked, setPicked] = useState('nothing yet');
+      return (
+        <div>
+          <h1>Document actions</h1>
+          <p>
+            <button>before the menu</button>{' '}
+            <button>after the menu</button>
+          </p>
+          <Menu onPick={setPicked} />
+          <FocusTracker />
+          <p>Last action: <b>{picked}</b></p>
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Same menu, no mouse required. Tab reaches the trigger;
+            Enter, Space or ArrowDown opens it and lands on "Rename";
+            arrows move, Home and End jump, Escape closes and gives
+            focus back to the button. Watch <code>activeIndex</code> in
+            the status line: that one number is the whole interaction,
+            and <code>nextIndex</code> — a pure function tested in Node —
+            is the only thing that changes it. "Delete" is skipped by the
+            arrows and refuses clicks. The mouse still works exactly as
+            before: keyboard support was <i>added</i>, not traded for.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

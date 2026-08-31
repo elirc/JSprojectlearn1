@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 59 — offline-first notes (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 720px; margin: 40px auto; }
+    .row { display: flex; gap: 12px; align-items: flex-start; }
+    .list { width: 220px; }
+    .list li { list-style: none; padding: 8px; border-radius: 6px; cursor: pointer; }
+    .list li.active { background: #e6f0ff; }
+    .list ul { margin: 0; padding: 0; }
+    .editor { flex: 1; }
+    input, textarea { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; }
+    textarea { height: 140px; }
+    .chip { display: inline-block; padding: 3px 10px; border-radius: 999px;
+            font-size: 13px; background: #d7f5dd; color: #1b5e20; }
+    .chip.pending { background: #fff3c4; color: #7a5b00; }
+    .chip.offline { background: #ffe3e3; color: #8b1a1a; }
+    .note { color: #777; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useLayoutEffect } = React;
+
+    // ==== THE RULES — a copy of sync.js, which is unit-tested in Node
+    // (browsers can't import modules from file:// pages; a bundler would
+    // import it). No React, no fetch, no localStorage below this line.
+    function applyOp(state, op) {
+      const existing = state.notes[op.noteId];
+      switch (op.type) {
+        case 'upsert': {
+          const base = existing || { id: op.noteId, title: '', body: '', deleted: false };
+          return { ...state, notes: { ...state.notes,
+            [op.noteId]: { ...base, ...op.fields, deleted: false, updatedAt: op.at } } };
+        }
+        case 'delete': {
+          const base = existing || { id: op.noteId, title: '', body: '' };
+          return { ...state, notes: { ...state.notes,
+            [op.noteId]: { ...base, deleted: true, updatedAt: op.at } } };
+        }
+        default:
+          return state;
+      }
+    }
+
+    function enqueueOp(pending, op) {
+      if (op.type === 'delete') {
+        return [...pending.filter((queued) => queued.noteId !== op.noteId), op];
+      }
+      if (op.type === 'upsert') {
+        const index = pending.findIndex(
+          (queued) => queued.type === 'upsert' && queued.noteId === op.noteId);
+        if (index === -1) return [...pending, op];
+        const next = [...pending];
+        next[index] = { ...pending[index], ...op,
+                        fields: { ...pending[index].fields, ...op.fields } };
+        return next;
+      }
+      return pending;
+    }
+
+    function mergeServerState(local, server, pendingOps = []) {
+      const unsent = new Set(pendingOps.map((op) => op.noteId));
+      const notes = { ...server.notes };
+      for (const id of Object.keys(local.notes)) {
+        const mine = local.notes[id];
+        const theirs = server.notes[id];
+        if (!theirs) {
+          if (unsent.has(id)) notes[id] = mine;
+          continue;
+        }
+        notes[id] = mine.updatedAt > theirs.updatedAt ? mine : theirs;
+      }
+      return pendingOps.reduce(applyOp, { ...local, notes });
+    }
+
+    const visibleNotes = (state) => Object.values(state.notes)
+      .filter((note) => !note.deleted)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+
+    function syncStatus({ online, pendingCount, syncing }) {
+      if (!online) return pendingCount > 0 ? `offline — ${pendingCount} waiting` : 'offline';
+      if (syncing) return 'syncing…';
+      if (pendingCount > 0) return `${pendingCount} pending`;
+      return 'synced';
+    }
+
+    // ==== THE FAKE SERVER — same latency, same 35% failures. Note it
+    // runs applyOp too: one rulebook, both sides of the wire.
+    const FAILURE_RATE = 0.35;
+    let db = { notes: {
+      n1: { id: 'n1', title: 'Shopping', body: 'milk, bread', deleted: false, updatedAt: 1 },
+      n2: { id: 'n2', title: 'Ideas', body: 'a notes app that works offline', deleted: false, updatedAt: 2 },
+    } };
+    const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+    async function serverSync(ops) {
+      await sleep(500 + Math.random() * 700);
+      if (Math.random() < FAILURE_RATE) throw new Error('network error');
+      db = ops.reduce(applyOp, db);
+      return JSON.parse(JSON.stringify(db));
+    }
+
+    // ==== LOCAL TRUTH — the cache the app renders from, instantly.
+    const KEY = 'react59.notes';
+    const cached = (() => {
+      try {
+        const raw = localStorage.getItem(KEY);
+        if (raw) return JSON.parse(raw);
+      } catch (e) { /* private mode, corrupt JSON: fall through */ }
+      return { state: JSON.parse(JSON.stringify(db)), pending: [] };
+    })();
+
+    // A clock that never repeats itself, so "last write" is never a tie
+    // decided by luck.
+    let clock = 0;
+    const stamp = () => (clock = Math.max(Date.now(), clock + 1));
+    const uid = () => Math.random().toString(36).slice(2, 10);
+
+    function App() {
+      const [state, setState] = useState(cached.state);
+      const [pending, setPending] = useState(cached.pending);
+      const [online, setOnline] = useState(true);
+      const [syncing, setSyncing] = useState(false);
+      const [selectedId, setSelectedId] = useState(null);
+
+      // The cache: written after every change, read before the first
+      // render. Project 23's usePersistentState, doing the real job it
+      // was invented for.
+      useEffect(() => {
+        try { localStorage.setItem(KEY, JSON.stringify({ state, pending })); }
+        catch (e) { /* out of quota: the app still works, just not offline */ }
+      }, [state, pending]);
+
+      // Every edit is the same two lines: change what the user sees,
+      // then remember to tell the server. Neither one can fail.
+      function dispatchOp(op) {
+        setState((s) => applyOp(s, op));
+        setPending((p) => enqueueOp(p, op));
+      }
+      const edit = (noteId, fields) =>
+        dispatchOp({ opId: uid(), type: 'upsert', noteId, fields, at: stamp() });
+      const remove = (noteId) =>
+        dispatchOp({ opId: uid(), type: 'delete', noteId, at: stamp() });
+
+      // The sync loop drains the outbox. A failure is not an error the
+      // user has to see — the queue simply stays full and it tries again.
+      const pendingRef = useRef(pending);
+      useLayoutEffect(() => { pendingRef.current = pending; });
+
+      useEffect(() => {
+        if (!online || syncing || pending.length === 0) return;
+        let cancelled = false;
+        const timer = setTimeout(async () => {
+          if (cancelled) return;
+          setSyncing(true);
+          const batch = pending;
+          try {
+            const server = await serverSync(batch);
+            if (cancelled) return;
+            const sent = new Set(batch.map((op) => op.opId));
+            // Anything typed while the request was in the air has a
+            // fresh opId, so it stays in the queue.
+            const remaining = pendingRef.current.filter((op) => !sent.has(op.opId));
+            setPending(remaining);
+            setState((s) => mergeServerState(s, server, remaining));
+          } catch (e) {
+            /* keep the queue; the next tick retries */
+          } finally {
+            if (!cancelled) setSyncing(false);
+          }
+        }, 700);
+        return () => { cancelled = true; clearTimeout(timer); };
+      }, [online, syncing, pending]);
+
+      const notes = visibleNotes(state);
+      const selected = selectedId ? state.notes[selectedId] : null;
+      const status = syncStatus({ online, pendingCount: pending.length, syncing });
+      const chipClass = !online ? 'chip offline' : pending.length ? 'chip pending' : 'chip';
+
+      function create() {
+        const id = 'n' + uid();
+        edit(id, { title: 'Untitled', body: '' });
+        setSelectedId(id);
+      }
+
+      // "Someone else edited this on their laptop" — straight into the
+      // server's copy, so you can watch last-write-wins do its job.
+      function otherDevice() {
+        db = applyOp(db, { type: 'upsert', noteId: 'n1',
+          fields: { body: 'edited on another device' }, at: stamp() });
+        setPending((p) => [...p]); // nudge the loop into fetching
+      }
+
+      return (
+        <div>
+          <h1>Notes <span className={chipClass}>{status}</span></h1>
+          <p className="note">
+            Same server: up to 1.2s, {FAILURE_RATE * 100}% failures. Type
+            anywhere — it appears instantly and is saved to this device
+            before the network is even consulted. Tick <b>offline</b>,
+            keep working, untick it and watch the queue drain. Refresh at
+            any point: nothing is lost.
+          </p>
+          <p>
+            <button onClick={create}>+ new note</button>{' '}
+            <label>
+              <input type="checkbox" checked={!online}
+                     onChange={(e) => setOnline(!e.target.checked)} /> offline
+            </label>{' '}
+            <button onClick={otherDevice}>simulate another device</button>
+          </p>
+          <div className="row">
+            <div className="list">
+              <ul>
+                {notes.map((note) => (
+                  <li
+                    key={note.id}
+                    className={note.id === selectedId ? 'active' : ''}
+                    onClick={() => setSelectedId(note.id)}
+                  >
+                    {note.title || '(untitled)'}{' '}
+                    <button onClick={(e) => { e.stopPropagation(); remove(note.id); }}>x</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="editor">
+              {selected ? (
+                <div>
+                  <input
+                    value={selected.title}
+                    onChange={(e) => edit(selected.id, { title: e.target.value })}
+                  />
+                  <textarea
+                    value={selected.body}
+                    onChange={(e) => edit(selected.id, { body: e.target.value })}
+                  />
+                </div>
+              ) : (
+                <p className="note">Pick a note. (There is no save button; there is nothing to save.)</p>
+              )}
+            </div>
+          </div>
+          <p className="note">
+            {pending.length} op{pending.length === 1 ? '' : 's'} in the outbox.
+            Typing a hundred characters queues <i>one</i> — repeated edits
+            to the same note collapse, so the queue is a set of intentions,
+            not a transcript of keystrokes.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

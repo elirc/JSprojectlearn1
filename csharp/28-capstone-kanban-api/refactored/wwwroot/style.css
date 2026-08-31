@@ -1,0 +1,105 @@
+* { box-sizing: border-box; }
+
+body {
+  font-family: system-ui, sans-serif;
+  background: #f4f5f7;
+  color: #1c2333;
+  margin: 0;
+  padding: 2rem 1rem;
+}
+
+main { max-width: 64rem; margin: 0 auto; }
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+h1 { margin: 0; font-size: 1.4rem; }
+
+#add-column-form { display: flex; gap: .5rem; }
+
+input {
+  padding: .45rem .6rem;
+  border: 1px solid #c6cbd4;
+  border-radius: 6px;
+  font: inherit;
+  min-width: 0;
+}
+
+button {
+  border: 0;
+  border-radius: 6px;
+  padding: .45rem .8rem;
+  font: inherit;
+  background: #2d6cdf;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) { background: #2458b8; }
+button:disabled { background: #c6cbd4; cursor: default; }
+
+.board {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-bottom: 1rem;
+}
+
+.column {
+  background: #e9ebef;
+  border-radius: 10px;
+  padding: .8rem;
+  min-width: 15rem;
+  flex: 0 0 15rem;
+}
+
+.column h2 {
+  font-size: .95rem;
+  margin: 0 0 .6rem;
+  color: #5b6372;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: .6rem .7rem;
+  margin-bottom: .5rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .1);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+
+.card .title { overflow-wrap: anywhere; }
+
+.card .controls { display: flex; gap: .25rem; flex-shrink: 0; }
+
+.card .controls button {
+  background: #eceef2;
+  color: #1c2333;
+  padding: .15rem .45rem;
+  font-size: .8rem;
+}
+
+.card .controls button:hover:not(:disabled) { background: #dde1e8; }
+.card .controls button:disabled { background: transparent; color: #c6cbd4; }
+
+.add-card { display: flex; gap: .4rem; margin-top: .4rem; }
+.add-card input { flex: 1; }
+
+.error {
+  background: #fbe9e9;
+  color: #c0392b;
+  border-radius: 6px;
+  padding: .5rem .7rem;
+}

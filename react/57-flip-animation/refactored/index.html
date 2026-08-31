@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 57 — FLIP animation (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { font-family: sans-serif; max-width: 640px; margin: 40px auto; }
+    .grid { display: flex; flex-wrap: wrap; gap: 8px; }
+    .tile {
+      width: 130px; padding: 12px; border-radius: 8px; cursor: pointer;
+      background: #eef2f7; border: 1px solid #cbd5e0; user-select: none;
+      /* No transition here. The FLIP code adds one for exactly as long
+         as it needs it — a transition that's always on would fight the
+         Invert step, which must happen with no animation at all. */
+    }
+    .tile.starred { background: #fff3c4; border-color: #e0b400; }
+    .note { color: #666; font-size: 14px; }
+    button { margin-right: 6px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useRef, useLayoutEffect } = React;
+
+    const DURATION = 350;
+
+    // ==== THE DECISION — a copy of flip.js, which is unit-tested in
+    // Node (browsers can't import modules from file:// pages; a bundler
+    // would import it). Pure arithmetic: no DOM, no React.
+    function computeInversions(prevRects, nextRects, epsilon = 0.5) {
+      const inversions = {};
+      for (const id of Object.keys(nextRects)) {
+        const prev = prevRects[id];
+        if (!prev) continue;                 // just appeared: nothing to fly from
+        const next = nextRects[id];
+        const dx = prev.left - next.left;
+        const dy = prev.top - next.top;
+        if (Math.abs(dx) < epsilon && Math.abs(dy) < epsilon) continue;
+        inversions[id] = { dx, dy };
+      }
+      return inversions;
+    }
+
+    const FRUITS = [
+      { id: 'f1', name: 'Apricot' },
+      { id: 'f2', name: 'Fig' },
+      { id: 'f3', name: 'Blackcurrant' },
+      { id: 'f4', name: 'Plum' },
+      { id: 'f5', name: 'Nectarine' },
+      { id: 'f6', name: 'Date' },
+      { id: 'f7', name: 'Persimmon' },
+      { id: 'f8', name: 'Kiwi' },
+    ];
+
+    const shuffle = (list) => {
+      const copy = [...list];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    };
+
+    function Tile({ item, register }) {
+      const [starred, setStarred] = useState(false);
+      return (
+        <div
+          ref={register}
+          className={'tile' + (starred ? ' starred' : '')}
+          onClick={() => setStarred((s) => !s)}
+        >
+          {starred ? '⭐ ' : ''}{item.name}
+        </div>
+      );
+    }
+
+    function App() {
+      const [items, setItems] = useState(FRUITS);
+      const [animate, setAnimate] = useState(true);
+      const nodes = useRef(new Map());   // id -> the element showing it
+      const prevRects = useRef(null);    // id -> where it was last commit
+
+      // useLayoutEffect, not useEffect: this runs after React has put the
+      // new order in the DOM but BEFORE the browser paints. That gap is
+      // the only place the Invert step can hide — in useEffect the user
+      // would see one frame of the teleport before the animation began.
+      useLayoutEffect(() => {
+        // LAST: where is everything now?
+        const nextRects = {};
+        nodes.current.forEach((el, id) => {
+          const box = el.getBoundingClientRect();
+          nextRects[id] = { left: box.left, top: box.top };
+        });
+
+        const prev = prevRects.current;
+        prevRects.current = nextRects;   // this render's LAST is next render's FIRST
+        if (!prev || !animate) return;   // first paint: nothing to compare to
+
+        const inversions = computeInversions(prev, nextRects);
+        const ids = Object.keys(inversions);
+        if (ids.length === 0) return;    // nothing moved; do no work at all
+
+        // INVERT: offset each moved tile back onto its old position,
+        // with transitions off so the jump is instant and invisible.
+        ids.forEach((id) => {
+          const el = nodes.current.get(id);
+          el.style.transition = 'none';
+          el.style.transform =
+            `translate(${inversions[id].dx}px, ${inversions[id].dy}px)`;
+        });
+
+        // Force the browser to compute layout NOW, so it accepts the
+        // inverted position as the animation's starting point. Without
+        // this line the browser batches both style changes and sees no
+        // change at all — the single most common FLIP bug.
+        void document.body.offsetHeight;
+
+        // PLAY: drop the offset and let CSS interpolate the tile home.
+        ids.forEach((id) => {
+          const el = nodes.current.get(id);
+          el.style.transition = `transform ${DURATION}ms ease`;
+          el.style.transform = '';
+        });
+      }, [items, animate]);
+
+      return (
+        <div>
+          <h1>Fruit, rearranged</h1>
+          <p className="note">
+            Star a couple of tiles, then press <b>shuffle</b>. The tiles
+            slide to their new places and the stars travel with their
+            fruit. Untick <b>animate</b> to see the same reorder without
+            the FLIP step — the teleport from the original.
+          </p>
+          <p>
+            <button onClick={() => setItems(shuffle(items))}>shuffle</button>
+            <button onClick={() => setItems([...items].sort((a, b) => a.name.localeCompare(b.name)))}>
+              sort A→Z
+            </button>
+            <button onClick={() => setItems([...items].sort((a, b) => a.name.length - b.name.length))}>
+              sort by length
+            </button>
+            <button onClick={() => setItems(FRUITS)}>reset</button>
+            <label style={{ marginLeft: 8 }}>
+              <input type="checkbox" checked={animate}
+                     onChange={(e) => setAnimate(e.target.checked)} /> animate
+            </label>
+          </p>
+          <div className="grid">
+            {items.map((item) => (
+              <Tile
+                key={item.id}                     /* the item's identity, not its slot */
+                item={item}
+                register={(el) => {
+                  if (el) nodes.current.set(item.id, el);
+                  else nodes.current.delete(item.id);
+                }}
+              />
+            ))}
+          </div>
+          <p className="note">
+            React never animates anything here; it just puts the tiles in
+            the right order. The animation is four steps of arithmetic and
+            two style writes, and the only step that <i>decides</i>
+            anything — the subtraction — lives in <code>flip.js</code>
+            with eleven Node tests. Poking <code>style.transform</code>
+            through a ref is the legitimate use of a ref (project 26):
+            it's a transient visual effect, not truth about the app.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>

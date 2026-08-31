@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>React 54 — list virtualization (refactored)</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style> body { font-family: sans-serif; max-width: 620px; margin: 40px auto; }
+          .scroller { height: 400px; overflow: auto; border: 1px solid #ccc; border-radius: 8px; }
+          .row { height: 40px; box-sizing: border-box; display: flex; align-items: center;
+                 gap: 10px; padding: 0 10px; border-bottom: 1px solid #eee; }
+          .avatar { width: 24px; height: 24px; border-radius: 50%; background: #dde3ec;
+                    color: #445; font-size: 11px; display: flex; align-items: center;
+                    justify-content: center; flex: 0 0 auto; }
+          .name { font-size: 14px; flex: 0 0 130px; }
+          .email { font-size: 12px; color: #888; flex: 1 1 auto; }
+          .badge { font-size: 11px; background: #eef; color: #446; border-radius: 10px; padding: 2px 8px; }
+          .readout { font-family: monospace; font-size: 13px; color: #444; margin: 8px 0; min-height: 34px; } </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useMemo, useRef, useLayoutEffect } = React;
+
+    const ROW_HEIGHT = 40;      // must match .row's height in the CSS above
+    const VIEWPORT_HEIGHT = 400; // must match .scroller's height
+    const OVERSCAN = 3;
+
+    // ==== THE WINDOW MATH — a copy of window.js, which is unit-tested
+    // in Node (browsers can't import modules from file:// pages; a
+    // bundler would import it). Note: zero React below this comment.
+    function computeWindow(scrollTop, rowHeight, viewportHeight, total, overscan = 3) {
+      if (total <= 0 || rowHeight <= 0) {
+        return { startIndex: 0, endIndex: -1, visibleCount: 0, offsetY: 0, totalHeight: 0 };
+      }
+      const totalHeight = total * rowHeight;
+      const safeScrollTop = Math.max(0, scrollTop);
+      // Clamped to the last row: scrollTop outruns the list whenever the
+      // filter shrinks it before the browser resets the scroll position.
+      const firstVisible = Math.min(Math.floor(safeScrollTop / rowHeight), total - 1);
+      const visibleRows = Math.ceil(viewportHeight / rowHeight) + 1;
+      const startIndex = Math.max(0, firstVisible - overscan);
+      const endIndex = Math.min(total - 1, firstVisible + visibleRows - 1 + overscan);
+      return {
+        startIndex,
+        endIndex,
+        visibleCount: endIndex - startIndex + 1,
+        offsetY: startIndex * rowHeight,
+        totalHeight,
+      };
+    }
+
+    // ==== DATA — generated, deterministic, identical on both pages ====
+    const FIRST = ['Ada', 'Grace', 'Alan', 'Linus', 'Barbara', 'Edsger',
+                   'Donald', 'Margaret', 'Ken', 'Dennis', 'Radia', 'Leslie'];
+    const LAST = ['Lovelace', 'Hopper', 'Turing', 'Torvalds', 'Liskov', 'Dijkstra',
+                  'Knuth', 'Hamilton', 'Thompson', 'Ritchie', 'Perlman', 'Lamport'];
+    const TEAM = ['platform', 'payments', 'search', 'mobile', 'infra', 'design'];
+
+    function makeRows(n) {
+      const rows = [];
+      for (let i = 0; i < n; i++) {
+        const first = FIRST[i % FIRST.length];
+        const last = LAST[(i * 7) % LAST.length];
+        rows.push({
+          id: i,
+          name: first + ' ' + last,
+          email: first.toLowerCase() + '.' + last.toLowerCase() + i + '@example.com',
+          team: TEAM[(i * 5) % TEAM.length],
+          initials: first[0] + last[0],
+        });
+      }
+      return rows;
+    }
+    const ROWS = makeRows(5000);
+
+    // Same instrument as the original, so the two numbers compare.
+    function useRenderClock(scrollerRef) {
+      const startedAt = performance.now();
+      const readoutRef = useRef(null);
+      const historyRef = useRef([]);
+
+      useLayoutEffect(() => {
+        if (scrollerRef.current) void scrollerRef.current.scrollHeight;
+        const ms = performance.now() - startedAt;
+        historyRef.current = [ms, ...historyRef.current].slice(0, 5);
+        if (readoutRef.current) {
+          readoutRef.current.textContent =
+            'last render: ' + ms.toFixed(1) + ' ms\n' +
+            'recent:      ' + historyRef.current.map((n) => n.toFixed(1)).join('  ');
+        }
+      });
+
+      return readoutRef;
+    }
+
+    function Row({ row }) {
+      return (
+        <div className="row">
+          <div className="avatar">{row.initials}</div>
+          <div className="name">{row.name}</div>
+          <div className="email">{row.email}</div>
+          <div className="badge">{row.team}</div>
+        </div>
+      );
+    }
+
+    function App() {
+      const [query, setQuery] = useState('');
+      const [scrollTop, setScrollTop] = useState(0);
+      const scrollerRef = useRef(null);
+      const readoutRef = useRenderClock(scrollerRef);
+
+      const visible = useMemo(() => {
+        const q = query.trim().toLowerCase();
+        if (q === '') return ROWS;
+        return ROWS.filter((r) => r.name.toLowerCase().includes(q) ||
+                                  r.email.toLowerCase().includes(q));
+      }, [query]);
+
+      // One pure call decides everything about this render.
+      const win = computeWindow(scrollTop, ROW_HEIGHT, VIEWPORT_HEIGHT,
+                                visible.length, OVERSCAN);
+      const slice = visible.slice(win.startIndex, win.endIndex + 1); // endIndex is inclusive
+
+      return (
+        <div>
+          <h1>People</h1>
+          <input value={query} onChange={(e) => setQuery(e.target.value)}
+                 placeholder="filter by name or email" style={{ width: '100%', padding: 6 }} />
+          <div className="readout" ref={readoutRef} style={{ whiteSpace: 'pre' }}></div>
+          <div>
+            rows rendered: <b>{slice.length}</b> of {visible.length}
+            {' '}(rows {win.startIndex}–{win.endIndex})
+          </div>
+
+          {/* The scroller scrolls; the inner div is the full height of the
+              list so the scrollbar tells the truth about how much there is.
+              Rendering on scroll re-renders App on every scroll event — and
+              that is fine, because each of those renders builds ~17 rows.
+              OVERSCAN is what keeps the edges filled between frames. */}
+          <div className="scroller" ref={scrollerRef}
+               onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}>
+            <div style={{ height: win.totalHeight, position: 'relative' }}>
+              <div style={{ transform: 'translateY(' + win.offsetY + 'px)' }}>
+                {slice.map((row) => (
+                  /* key={row.id}, NEVER the slice index. An index key here
+                     is the classic virtualization bug (project 03): the
+                     indexes 0..16 stay the same as you scroll, so React
+                     reuses row 0's DOM — and its state — for whoever
+                     happens to be at the top now. Check a checkbox, scroll,
+                     and watch the tick jump to a stranger. */
+                  <Row key={row.id} row={row} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <p style={{ color: '#666', fontSize: 14 }}>
+            Type in the filter box and watch the millisecond counter: the
+            same list, the same filter, roughly {win.visibleCount} rendered
+            rows instead of {visible.length}. The rows that are not on
+            screen do not exist — they are a number in a spacer's height.
+            Real libraries (react-window, TanStack Virtual) and CSS
+            content-visibility add variable row heights, sticky headers and
+            scroll anchoring on top of this ~30 lines; the idea inside them
+            is the arithmetic above. It is not free, either: Ctrl+F cannot
+            find a row that was never rendered, and screen readers need an
+            explicit row count, because the DOM no longer knows one.
+          </p>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
