@@ -1,0 +1,13 @@
+# Worked change: update a learning note without losing an edit
+
+Imagine two tabs opened the same learning journal at revision 4. Tab A changes a title to “Atomic audit writes.” Tab B changes the body to explain a rollback. The required behavior is that one accepted save advances the document, while the stale editor keeps its text and asks the learner to reconcile. Automatically merging these whole documents would risk losing mission progress, review scheduling, or other notes.
+
+First open [LearningNotes.tsx](../src/components/LearningNotes.tsx) and find `open`. It captures `progress` as the editor base. This is important: using the newest parent snapshot at submission time could disguise that the user edited an older record. The form fields change independently of that base. React renders text as text; note bodies are not injected as HTML.
+
+Next follow `save` into [updateNote](../src/game/notes.ts). It creates a new collection containing the changed record and keeps the identifier stable. Missing identifiers are rejected. The operation refreshes `updatedAt`, validates the candidate, and leaves the original object untouched. In a debugger, keep references to both objects and compare their bodies after the function returns.
+
+The parent then validates the candidate against the catalog and calls `persistProgress`. Under the Web Lock, the storage adapter reads the current saved document. If Tab A already saved, the current revision is 5 while Tab B still proposes revision 4. The adapter throws before calling `setItem`. Tab B does not close its editor, does not change its accepted list, and exposes **Export pending draft**. Export that draft before choosing **Load current progress**, because loading explicitly discards open drafts.
+
+For the winning tab, storage creates the next revision, serializes the bounded document, and calls `setItem`. Only a successful call returns the accepted snapshot. The parent adopts it, and the editor closes. The distinction is observable: replace `Storage.prototype.setItem` with a function that throws in a disposable test page, then submit. The same candidate must remain recoverable and the original saved value must remain identical.
+
+Now implement a small extension yourself: add a `summary` field limited to 200 characters. Change the type, schema, form, card, import compatibility rule, and tests. Decide whether old saves default the field to an empty string. Test a legacy save, exactly 200 characters, 201 characters, and a stale update containing a valid summary. Do not merely add an HTML `maxLength`; imported JSON bypasses that control. Explain why the schema is the authoritative boundary even though the form helps users avoid invalid input.

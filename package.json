@@ -1,13 +1,33 @@
 {
-  "name": "js-project-learn",
+  "name": "skillforge-quest",
   "version": "1.0.0",
-  "description": "165 projects (JS/React/TS) that teach 'easy to change' code: build it messy, refactor it clean, compare.",
+  "private": true,
   "type": "module",
+  "description": "A gamified, persistent software-engineering learning journey.",
   "scripts": {
-    "test": "node --test",
-    "typecheck": "tsc -p typescript"
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run src",
+    "test:watch": "vitest",
+    "verify:content": "node scripts/verify-content.mjs",
+    "test:browser": "playwright test"
+  },
+  "dependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0"
   },
   "devDependencies": {
-    "typescript": "^7.0.2"
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0",
+    "@playwright/test": "1.60.0"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
