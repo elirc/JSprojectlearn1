@@ -72,6 +72,10 @@ const setValueAndInput = (selector, value) => `(() => {
 
 await command("Runtime.enable");
 await command("Page.enable");
+// The mission screen is two-column at 1050 px and up; pin a desktop viewport so
+// the lesson, lab and gates are all mounted at once.
+const desktopMetrics = { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false };
+await command("Emulation.setDeviceMetricsOverride", desktopMetrics);
 await evaluate("localStorage.clear(); true");
 await command("Page.reload", { ignoreCache: true });
 await waitFor("document.readyState === 'complete' && Boolean(document.querySelector('.onboarding-card'))", "initial render");
@@ -81,7 +85,7 @@ await evaluate("document.querySelector('.onboarding-card .primary-button').click
 await waitFor("document.body.innerText.includes('CURRENT DIRECTIVE')", "dashboard");
 
 const dashboard = await evaluate(`({
-  missions: document.querySelector('.catalog-count')?.textContent,
+  missions: document.querySelector('.catalog-count small')?.textContent,
   worlds: document.querySelectorAll('.world-card').length,
   callsign: document.querySelector('.topbar strong')?.textContent
 })`);
@@ -105,14 +109,14 @@ const mission = await evaluate(`({
 })`);
 
 await evaluate("document.querySelector('.code-lab-heading button').click(); true");
-await waitFor("document.querySelector('.code-lab pre').innerText.startsWith('PASS')", "JavaScript lab result");
+await waitFor("document.querySelector('.code-lab pre').innerText.startsWith('COMPLETED')", "JavaScript lab result");
 mission.labOutput = await evaluate("document.querySelector('.code-lab pre').innerText");
 const missionShot = await command("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
 await import("node:fs/promises").then(fs => fs.writeFile("skillforge-mission.png", Buffer.from(missionShot.data, "base64")));
 await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true });
 const mobileShot = await command("Page.captureScreenshot", { format: "png", captureBeyondViewport: false });
 await import("node:fs/promises").then(fs => fs.writeFile("skillforge-mobile.png", Buffer.from(mobileShot.data, "base64")));
-await command("Emulation.clearDeviceMetricsOverride");
+await command("Emulation.setDeviceMetricsOverride", desktopMetrics);
 
 for (let gate = 0; gate < 3; gate += 1) {
   const answer = `Gate ${gate + 1}: I will explain the mechanism from memory, identify a concrete failure mode, state a falsifiable prediction, and record the exact command plus observed result. `.repeat(3);
@@ -158,7 +162,7 @@ const passed = dashboard.missions === "334 missions"
   && mission.gates === 3
   && mission.fieldManual
   && mission.codeLab
-  && mission.labOutput.startsWith("PASS")
+  && mission.labOutput.startsWith("COMPLETED")
   && save?.completedMissions === 1
   && save?.completedChallenges === 3
   && afterClear.complete === 1

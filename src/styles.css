@@ -282,6 +282,16 @@ textarea:focus-visible {
 .catalog-count {
   font-size: 0.7rem;
   color: #607187;
+  display: grid;
+  gap: 3px;
+  justify-items: end;
+  text-align: right;
+}
+.save-chip {
+  color: var(--cyan);
+  font-size: 0.68rem;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .page {
   max-width: 1440px;
@@ -1520,19 +1530,18 @@ textarea:focus-visible {
     width: 78px;
     padding-inline: 11px;
   }
-  .brand-lockup > div:last-child,
-  .nav-item:not(.active) {
+  .brand-lockup > div:last-child {
     font-size: 0;
   }
   .nav-item {
     grid-template-columns: 1fr;
     text-align: center;
   }
+  .nav-item em {
+    display: none;
+  }
   .nav-item span {
     font-size: 1rem;
-  }
-  .nav-item.active {
-    font-size: 0;
   }
   .sidebar-worlds,
   .sidebar-footer {
@@ -1560,9 +1569,9 @@ textarea:focus-visible {
     position: fixed;
     inset: auto 0 0 0;
     width: auto;
-    height: 66px;
+    height: calc(60px + env(safe-area-inset-bottom));
     display: block;
-    padding: 7px 10px;
+    padding: 5px 8px calc(4px + env(safe-area-inset-bottom));
     border: 0;
     border-top: 1px solid var(--line);
   }
@@ -1582,9 +1591,19 @@ textarea:focus-visible {
     display: grid;
     grid-template-columns: 1fr;
     justify-items: center;
-    font-size: 0.55rem;
-    padding: 6px 2px;
+    align-content: center;
+    gap: 2px;
+    min-height: 50px;
+    font-size: 0.66rem;
+    line-height: 1.1;
+    padding: 4px 2px;
     box-shadow: none;
+  }
+  .nav-item em {
+    display: block;
+    font-style: normal;
+    font-size: 0.66rem;
+    text-align: center;
   }
   .nav-item span {
     font-size: 0.95rem;
@@ -1594,7 +1613,7 @@ textarea:focus-visible {
     margin-left: 22px;
   }
   .main-shell {
-    padding: 0 0 66px;
+    padding: 0 0 calc(60px + env(safe-area-inset-bottom));
   }
   .topbar {
     padding: 0 14px;
@@ -1773,15 +1792,221 @@ textarea:focus-visible {
 .save-recovery {
   padding-top: 45px;
 }
+/* Slim sticky draft bar: only visible while this mission has unsaved drafts. */
 .mission-draft-bar {
-  padding: 18px;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  margin: 20px 0;
+  position: fixed;
+  left: 250px;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 18px calc(9px + env(safe-area-inset-bottom));
+  background: rgba(9, 23, 38, 0.97);
+  border-top: 1px solid var(--cyan);
+  backdrop-filter: blur(14px);
+}
+.mission-draft-bar strong {
+  font-size: 0.78rem;
+  color: var(--cyan);
+}
+.mission-draft-bar p {
+  margin: 2px 0 0;
+  font-size: 0.66rem;
+  color: var(--muted);
 }
 .mission-draft-bar button {
-  margin-top: 10px;
+  margin-left: auto;
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+.draft-recovered {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border-left: 3px solid var(--amber);
+  background: rgba(255, 191, 105, 0.07);
+  color: var(--amber);
+  font-size: 0.72rem;
+}
+
+/* Compact save banner shown outside the Loadout & saves page. */
+.save-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 4vw 0;
+  padding: 10px 14px;
+  border: 1px solid var(--amber);
+  border-radius: 10px;
+  background: rgba(255, 191, 105, 0.08);
+}
+.save-banner p {
+  margin: 0;
+  flex: 1 1 auto;
+  font-size: 0.76rem;
+  color: #f4e3c6;
+  overflow-wrap: anywhere;
+}
+.save-banner button {
+  flex: 0 0 auto;
+  min-height: 40px;
+}
+.banner-dismiss {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 8px;
+}
+
+/* Read · Lab · Gates switcher (mobile only; desktop keeps two columns). */
+.section-switcher {
+  position: sticky;
+  top: 82px;
+  z-index: 14;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(9, 23, 38, 0.97);
+  backdrop-filter: blur(14px);
+}
+.section-switcher button {
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #90a2b8;
+  font-size: 0.8rem;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.section-switcher button.active {
+  color: #041417;
+  background: linear-gradient(135deg, var(--cyan), #90efd0);
+  border-color: var(--cyan);
+}
+.section-switcher i {
+  font-style: normal;
+  font-size: 0.62rem;
+  opacity: 0.8;
+}
+.reference-page .mission-layout.single,
+.mission-layout.single {
+  grid-template-columns: 1fr;
+}
+.lesson-column {
+  min-width: 0;
+  display: grid;
+  gap: 16px;
+}
+.back-to-map {
+  margin-top: 18px;
+}
+
+/* Lesson reader: contents list plus collapsible sections. */
+.lesson-contents {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #08151f;
+  padding: 14px 16px;
+  margin: 18px 0 22px;
+}
+.lesson-contents h2 {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 0;
+  padding: 0;
+}
+.lesson-contents ol {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 2px;
+}
+.lesson-contents button {
+  border: 0;
+  background: transparent;
+  color: var(--cyan);
+  text-align: left;
+  padding: 7px 0;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.lesson-section {
+  border-bottom: 1px solid #14283c;
+}
+.lesson-section h2 {
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+.lesson-section-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  border: 0;
+  background: transparent;
+  color: #eaf4ff;
+  font-size: 0.95rem;
+  font-weight: 700;
+  text-align: left;
+  padding: 10px 0;
+  cursor: pointer;
+}
+.lesson-section-toggle span {
+  color: var(--cyan);
+}
+.lesson-section-body {
+  padding-bottom: 12px;
+}
+
+/* Review-now card: the shortest useful session goes first. */
+.review-now {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+  padding: 18px 22px;
+  border: 1px solid var(--amber);
+  border-radius: 14px;
+  background: rgba(255, 191, 105, 0.07);
+}
+.review-now h2 {
+  margin: 4px 0 6px;
+  font-size: 1.15rem;
+}
+.review-now p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+}
+.review-now button {
+  margin-left: auto;
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+.mission-node.reference {
+  border-style: dashed;
+  border-color: #3c5b78;
+}
+.mission-node.reference .node-index {
+  background: #16273c;
+  color: var(--violet);
 }
 .learning-notes {
   margin-top: 28px;
@@ -1903,5 +2128,101 @@ textarea:focus-visible {
   }
   .learning-notes {
     min-width: 0;
+  }
+}
+
+@media (min-width: 1050px) {
+  .section-switcher {
+    display: none;
+  }
+}
+@media (max-width: 1050px) {
+  .mission-draft-bar {
+    left: 78px;
+  }
+  .section-switcher {
+    top: 74px;
+  }
+}
+@media (max-width: 720px) {
+  .save-banner {
+    margin: 10px 14px 0;
+    flex-wrap: wrap;
+  }
+  .mission-draft-bar {
+    left: 0;
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    padding: 8px 14px;
+  }
+  .mission-page {
+    padding-bottom: 120px;
+  }
+  .section-switcher {
+    top: 68px;
+    margin-inline: 0;
+  }
+  .mission-header {
+    padding-bottom: 14px;
+    margin-bottom: 14px;
+    gap: 12px;
+  }
+  .mission-header h1 {
+    margin: 4px 0 6px;
+    font-size: 1.55rem;
+  }
+  .mission-header p {
+    margin: 0 0 8px;
+    font-size: 0.78rem;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .mission-page .back-button {
+    margin-bottom: 10px;
+    min-height: 44px;
+  }
+  .mission-page .concept-row {
+    display: none;
+  }
+  .review-now {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px;
+  }
+  .review-now button,
+  .mission-draft-bar button {
+    margin-left: 0;
+    width: 100%;
+  }
+  .mission-draft-bar {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .mission-draft-bar button {
+    width: auto;
+    margin-left: auto;
+  }
+  /* Tap targets: nothing tappable smaller than 44 px on a phone. */
+  .world-tabs button,
+  .file-tabs button,
+  .primary-button,
+  .ghost-button,
+  .save-actions button,
+  .challenge-footer button,
+  .review-actions button,
+  .code-lab-heading button,
+  .notes-pages button,
+  .hint-button,
+  .choice-row button {
+    min-height: 44px;
+  }
+  .hint-button {
+    text-align: left;
+  }
+  .lesson-contents button {
+    min-height: 44px;
+    width: 100%;
   }
 }

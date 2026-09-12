@@ -55,7 +55,46 @@ async function mission(page: Page) {
     .first()
     .click();
   await page.locator(".mission-node.available").first().click();
-  await expect(page.getByLabel("JavaScript scratch lab")).toBeVisible();
+  // The mission archive is a large fetch; allow for a slow dev server.
+  await expect(page.getByLabel("JavaScript scratch lab")).toBeVisible({
+    timeout: 20000,
+  });
+}
+const draftsKey = "skillforge.quest.drafts.v1";
+const phone = { width: 390, height: 844 };
+async function openFirstMission(page: Page) {
+  await page
+    .getByRole("button", { name: "Mission map", exact: false })
+    .first()
+    .click();
+  await page.locator(".mission-node.available").first().click();
+  await expect(page.locator(".mission-header h1")).toBeVisible({
+    timeout: 20000,
+  });
+}
+async function topOf(page: Page, selector: string) {
+  return page
+    .locator(selector)
+    .first()
+    .evaluate((el) => Math.round(el.getBoundingClientRect().top));
+}
+async function drafts(page: Page) {
+  return page.evaluate((k) => localStorage.getItem(k), draftsKey);
+}
+async function referenceCatalog(page: Page) {
+  await page.route("**/content/catalog.json", async (route) => {
+    const json = await (await route.fetch()).json();
+    const target = json.missions.find(
+      (m: any) =>
+        m.worldId === "foundations" &&
+        !json.missions.some((other: any) => other.prerequisites.includes(m.id)),
+    );
+    target.kind = "reference";
+    target.challenges = [];
+    target.prerequisites = [];
+    target.xp = 0;
+    await route.fulfill({ json });
+  });
 }
 test("onboarding persists only after submit and survives reload", async ({
   page,
@@ -396,4 +435,118 @@ test("oversized import leaves storage and an open note draft untouched", async (
     "Retained draft",
   );
   expect((await saved(page)).revision).toBe(1);
+});
+
+test("phone mission shows title and switcher above the fold with gates one tap away", async ({
+  page,
+}) => {
+  await page.setViewportSize(phone);
+  await seed(page);
+  await openFirstMission(page);
+  await expect(
+    page.getByRole("tab", { name: "Read", exact: true }),
+  ).toBeVisible();
+  const titleTop = await topOf(page, ".mission-header h1");
+  const switcherTop = await topOf(page, ".section-switcher");
+  expect(titleTop).toBeGreaterThan(0);
+  expect(titleTop).toBeLessThan(phone.height);
+  expect(switcherTop).toBeLessThan(phone.height);
+  // Read is the default for a fresh mission; the lab and gates are hidden.
+  await expect(page.locator(".challenge-rail")).toHaveCount(0);
+  await expect(page.getByLabel("JavaScript scratch lab")).toHaveCount(0);
+  await page.getByRole("tab", { name: "Gates", exact: true }).click();
+  await expect(page.locator(".challenge-card").first()).toBeVisible();
+  expect(await topOf(page, ".challenge-rail")).toBeLessThan(phone.height);
+  await page.getByRole("tab", { name: "Lab", exact: true }).click();
+  await expect(page.getByLabel("JavaScript scratch lab")).toBeVisible();
+  // Desktop keeps the two-column layout and hides the switcher.
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await expect(page.locator(".section-switcher")).toBeHidden();
+  await expect(page.locator(".challenge-rail")).toBeVisible();
+  await expect(page.getByLabel("JavaScript scratch lab")).toBeVisible();
+});
+
+test("unsaved drafts survive a reload and saving clears the drafts key", async ({
+  page,
+}) => {
+  await seed(page);
+  await mission(page);
+  const answer =
+    "Recovered prediction: the fifteen branch must run first, and zero plus negatives are the boundary cases I would test. ";
+  await page.locator(".challenge-card textarea").first().fill(answer);
+  await expect
+    .poll(async () => (await drafts(page)) || "")
+    .toContain("Recovered prediction");
+  expect((await saved(page)).responses).toEqual({});
+  page.once("dialog", (d) => d.accept());
+  await page.reload();
+  await mission(page);
+  await expect(
+    page.getByText("Recovered unsaved drafts from this device."),
+  ).toBeVisible();
+  await expect(page.locator(".challenge-card textarea").first()).toHaveValue(
+    answer,
+  );
+  await page.getByRole("button", { name: "Save mission drafts" }).click();
+  await expect(
+    page.getByText("Saved revision 2", { exact: true }),
+  ).toBeVisible();
+  await expect.poll(async () => await drafts(page)).toBe("{}");
+  const accepted = await saved(page);
+  expect(Object.values(accepted.responses)).toContain(answer);
+});
+
+test("a reference entry opens with no gates, lab or draft bar", async ({
+  page,
+}) => {
+  await referenceCatalog(page);
+  await seed(page);
+  await page
+    .getByRole("button", { name: "Mission map", exact: false })
+    .first()
+    .click();
+  const node = page.locator(".mission-node.reference").first();
+  await expect(node).toBeEnabled();
+  await expect(node).toContainText("Reference");
+  await expect(node).toContainText("Open");
+  await node.click();
+  await expect(page.locator(".mission-header h1")).toBeVisible({
+    timeout: 20000,
+  });
+  await expect(page.locator(".challenge-rail")).toHaveCount(0);
+  await expect(page.getByLabel("JavaScript scratch lab")).toHaveCount(0);
+  await expect(page.locator(".section-switcher")).toHaveCount(0);
+  await expect(page.locator(".mission-draft-bar")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Back to map" })).toBeVisible();
+});
+
+test("no horizontal overflow on mission, map and profile at 390px", async ({
+  page,
+}) => {
+  await page.setViewportSize(phone);
+  await seed(page);
+  const noOverflow = async () =>
+    page.evaluate(() => document.documentElement.scrollWidth <= innerWidth);
+  await page
+    .getByRole("button", { name: "Mission map", exact: false })
+    .first()
+    .click();
+  await expect(page.locator(".mission-node").first()).toBeVisible();
+  expect(await noOverflow()).toBe(true);
+  await page.locator(".mission-node.available").first().click();
+  await expect(page.locator(".mission-header h1")).toBeVisible({
+    timeout: 20000,
+  });
+  expect(await noOverflow()).toBe(true);
+  await page.getByRole("tab", { name: "Gates", exact: true }).click();
+  await expect(page.locator(".challenge-card").first()).toBeVisible();
+  expect(await noOverflow()).toBe(true);
+  await page.getByRole("tab", { name: "Lab", exact: true }).click();
+  await expect(page.getByLabel("JavaScript scratch lab")).toBeVisible();
+  expect(await noOverflow()).toBe(true);
+  await page.getByRole("button", { name: "Loadout & saves" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Learning notes", exact: true }),
+  ).toBeVisible();
+  expect(await noOverflow()).toBe(true);
 });

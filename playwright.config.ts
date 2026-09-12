@@ -13,7 +13,9 @@ export default defineConfig({
   ],
   workers: 1,
   retries: 0,
-  timeout: 30000,
+  // Tests that open a mission, save, reload and reopen spend most of their time
+  // waiting on the Vite dev server; 30 s was flaky on a busy machine.
+  timeout: 90000,
   use: {
     baseURL: "http://127.0.0.1:4287",
     viewport: { width: 1440, height: 1100 },

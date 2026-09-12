@@ -1,9 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   createProgress,
-  challengeKey,
-  completeChallenge,
   dueMissionIds,
   earnedBadges,
   isChallengeComplete,
@@ -15,6 +12,14 @@ import {
   streakFromDates,
 } from "./game/engine";
 import {
+  completedInWorld,
+  completedMissionCount,
+  gatedMissions,
+  isReference,
+  missionsOfWorld,
+  totalGateCount,
+} from "./game/catalog";
+import {
   loadProgress,
   parseProgressExport,
   persistProgress,
@@ -22,24 +27,16 @@ import {
   resetProgress,
   STORAGE_KEY,
 } from "./game/storage";
-import type {
-  ArchivedFile,
-  Catalog,
-  GameProgress,
-  Mission,
-  MissionContent,
-  ReviewRating,
-  World,
-} from "./types";
+import type { Catalog, GameProgress, Mission, ReviewRating } from "./types";
 
 import { validateAgainstCatalog, MAX_SAVE_BYTES } from "./game/schema";
 import { SavePanel } from "./components/SavePanel";
 import { LearningNotes } from "./components/LearningNotes";
-import { startLab } from "./game/lab";
-type View = "home" | "journey" | "reviews" | "profile" | "mission";
+import { Dashboard } from "./components/Dashboard";
+import { MissionScreen } from "./components/MissionScreen";
+import { cx } from "./components/shared";
 
-const cx = (...values: (string | false | undefined)[]) =>
-  values.filter(Boolean).join(" ");
+type View = "home" | "journey" | "reviews" | "profile" | "mission";
 
 function App() {
   const [initial] = useState(() => {
@@ -67,6 +64,7 @@ function App() {
   const [selectedWorld, setSelectedWorld] = useState("foundations");
   const [selectedMissionId, setSelectedMissionId] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   useEffect(() => {
     const controller = new AbortController();
     setCatalogError(undefined);
@@ -124,6 +122,9 @@ function App() {
     const timer = setTimeout(() => setNotice(undefined), 4200);
     return () => clearTimeout(timer);
   }, [notice]);
+  useEffect(() => {
+    if (saveError || pending) setBannerDismissed(false);
+  }, [saveError, pending]);
   async function commitProgress(proposal: GameProgress): Promise<GameProgress> {
     if (inFlight.current)
       throw new Error(
@@ -265,6 +266,8 @@ function App() {
         />
       </>
     );
+  const showBanner =
+    view !== "profile" && !bannerDismissed && (!!saveError || !!pending);
   return (
     <div className="app-shell" key={workspaceKey}>
       <Sidebar
@@ -274,14 +277,32 @@ function App() {
         onNavigate={navigate}
       />
       <main className="main-shell">
-        <Topbar progress={progress} catalog={catalog} />
-        {savePanel}
+        <Topbar progress={progress} catalog={catalog} saving={saving} />
+        {showBanner && (
+          <div className="save-banner" role="alert">
+            <p>{saveError || "A draft could not be saved yet."}</p>
+            <button
+              className="ghost-button"
+              onClick={() => navigate("profile")}
+            >
+              Open saves
+            </button>
+            <button
+              className="banner-dismiss"
+              aria-label="Dismiss save notice"
+              onClick={() => setBannerDismissed(true)}
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {view === "home" && (
           <Dashboard
             catalog={catalog}
             progress={progress}
             onMission={openMission}
             onJourney={() => navigate("journey")}
+            onReviews={() => navigate("reviews")}
           />
         )}
         {view === "journey" && (
@@ -309,6 +330,7 @@ function App() {
             onProgress={commitProgress}
             onNotice={setNotice}
             onDirty={setDirty}
+            savePanel={savePanel}
             onImported={() => {
               setDirty(false);
               setWorkspaceKey((v) => v + 1);
@@ -387,10 +409,10 @@ function Onboarding({
         </p>
         <div className="onboarding-stats">
           <span>
-            <strong>{catalog.missions.length}</strong> missions
+            <strong>{gatedMissions(catalog).length}</strong> missions
           </span>
           <span>
-            <strong>{catalog.missions.length * 3}</strong> challenge gates
+            <strong>{totalGateCount(catalog)}</strong> challenge gates
           </span>
           <span>
             <strong>{catalog.sourceFileCount}</strong> archived sources
@@ -510,8 +532,8 @@ function Sidebar({
             className={cx("nav-item", view === item.id && "active")}
             onClick={() => onNavigate(item.id)}
           >
-            <span>{item.glyph}</span>
-            {item.label}
+            <span aria-hidden="true">{item.glyph}</span>
+            <em>{item.label}</em>
             {item.id === "reviews" && due > 0 && <i>{due}</i>}
           </button>
         ))}
@@ -523,14 +545,8 @@ function Sidebar({
             <span className={`world-dot ${world.color}`} />
             {world.name}
             <small>
-              {
-                progress.completedMissions.filter(
-                  (id) =>
-                    catalog.missions.find((m) => m.id === id)?.worldId ===
-                    world.id,
-                ).length
-              }
-              /{world.missionCount}
+              {completedInWorld(progress, catalog, world.id)}/
+              {missionsOfWorld(catalog, world.id).length}
             </small>
           </div>
         ))}
@@ -548,9 +564,11 @@ function Sidebar({
 function Topbar({
   progress,
   catalog,
+  saving,
 }: {
   progress: GameProgress;
   catalog: Catalog;
+  saving: boolean;
 }) {
   const level = levelFromXp(progress.xp);
   const bar = levelProgress(progress.xp);
@@ -573,183 +591,32 @@ function Topbar({
           </small>
         </div>
         <div className="stat-pill">
-          <span>◆</span>
+          <span aria-hidden="true">◆</span>
           <b>{progress.xp.toLocaleString()}</b>
           <small>XP</small>
         </div>
         <div className="stat-pill">
-          <span>↻</span>
+          <span aria-hidden="true">↻</span>
           <b>{due}</b>
           <small>DUE</small>
         </div>
         <div className="stat-pill flame">
-          <span>▲</span>
+          <span aria-hidden="true">▲</span>
           <b>{streak}</b>
           <small>STREAK</small>
         </div>
       </div>
-      <div className="catalog-count">{catalog.missions.length} missions</div>
-    </header>
-  );
-}
-
-function Dashboard({
-  catalog,
-  progress,
-  onMission,
-  onJourney,
-}: {
-  catalog: Catalog;
-  progress: GameProgress;
-  onMission: (mission: Mission) => void;
-  onJourney: () => void;
-}) {
-  const next = catalog.missions.find(
-    (mission) =>
-      isMissionUnlocked(mission, progress) &&
-      !progress.completedMissions.includes(mission.id),
-  );
-  const completedPercent = Math.round(
-    (progress.completedMissions.length / catalog.missions.length) * 100,
-  );
-  const badges = earnedBadges(progress);
-  return (
-    <div className="page dashboard">
-      <section className="hero">
-        <div className="hero-copy">
-          <span className="eyebrow">CURRENT DIRECTIVE</span>
-          <h1>{next ? next.title : "Frontier conquered"}</h1>
-          <p>
-            {next?.summary ||
-              "Every mission is complete. Revisit weak skills in the Memory Forge."}
-          </p>
-          <div className="hero-actions">
-            {next && (
-              <button
-                className="primary-button"
-                onClick={() => onMission(next)}
-              >
-                Continue mission <span>→</span>
-              </button>
-            )}
-            <button className="ghost-button" onClick={onJourney}>
-              Open mission map
-            </button>
-          </div>
-        </div>
-        <div className="hero-radar">
-          <div className="radar-ring">
-            <div className="radar-core">
-              <strong>{completedPercent}%</strong>
-              <span>journey</span>
-            </div>
-          </div>
-          <div className="floating-code">
-            const proof = <b>ship()</b>;
-          </div>
-        </div>
-      </section>
-      <section className="section-heading">
-        <div>
-          <span className="eyebrow">CAMPAIGN STATUS</span>
-          <h2>Your worlds</h2>
-        </div>
-        <p>
-          {progress.completedMissions.length} of {catalog.missions.length}{" "}
-          missions cleared
-        </p>
-      </section>
-      <div className="world-grid">
-        {catalog.worlds.map((world) => (
-          <WorldCard
-            key={world.id}
-            world={world}
-            catalog={catalog}
-            progress={progress}
-          />
-        ))}
-      </div>
-      <div className="dashboard-lower">
-        <section className="panel daily">
-          <span className="eyebrow">DAILY QUEST</span>
-          <h3>Retrieve before you reveal</h3>
-          <p>
-            Before opening today’s lesson, write what you remember and one
-            prediction that could be wrong.
-          </p>
-          <div className="reward">
-            <span>+20 XP</span>
-            <small>awarded through your next good review</small>
-          </div>
-        </section>
-        <section className="panel">
-          <div className="panel-title">
-            <div>
-              <span className="eyebrow">BADGE WALL</span>
-              <h3>Proof of work</h3>
-            </div>
-            <span>{badges.length}/6</span>
-          </div>
-          <div className="badge-row">
-            {badges.length ? (
-              badges.slice(-4).map((badge) => (
-                <div className="badge" key={badge.id} title={badge.description}>
-                  ◆<span>{badge.name}</span>
-                </div>
-              ))
-            ) : (
-              <p className="muted">
-                Complete your first challenge to forge a badge.
-              </p>
-            )}
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
-
-function WorldCard({
-  world,
-  catalog,
-  progress,
-}: {
-  world: World;
-  catalog: Catalog;
-  progress: GameProgress;
-}) {
-  const missions = catalog.missions.filter((m) => m.worldId === world.id);
-  const complete = missions.filter((m) =>
-    progress.completedMissions.includes(m.id),
-  ).length;
-  const unlocked = missions.some((m) => isMissionUnlocked(m, progress));
-  return (
-    <article className={cx("world-card", !unlocked && "locked")}>
-      <div className={`world-icon ${world.color}`}>
-        {unlocked ? world.icon : "⌾"}
-      </div>
-      <div>
-        <span className="mini-label">
-          {world.optional
-            ? "OPTIONAL EXPEDITION"
-            : `WORLD ${catalog.worlds.indexOf(world) + 1}`}
+      <div className="catalog-count">
+        <span className="save-chip" role="status">
+          {saving
+            ? "Saving progress…"
+            : progress.epoch
+              ? `Saved revision ${progress.revision}`
+              : "No saved profile yet"}
         </span>
-        <h3>{world.name}</h3>
-        <p>{world.description}</p>
-        <div className="world-progress">
-          <div>
-            <i
-              style={{
-                width: `${missions.length ? (complete / missions.length) * 100 : 0}%`,
-              }}
-            />
-          </div>
-          <span>
-            {complete}/{missions.length}
-          </span>
-        </div>
+        <small>{gatedMissions(catalog).length} missions</small>
       </div>
-    </article>
+    </header>
   );
 }
 
@@ -772,6 +639,19 @@ function Journey({
   const missions = catalog.missions.filter(
     (mission) => mission.worldId === world.id,
   );
+  const activeTab = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // Centre the active world tab inside its own strip. Setting scrollLeft
+    // keeps this off the page scroll (scrollIntoView would inherit the
+    // document's smooth scrolling and move the whole view).
+    const tab = activeTab.current;
+    const strip = tab?.parentElement;
+    if (!tab || !strip) return;
+    strip.scrollLeft = Math.max(
+      0,
+      tab.offsetLeft - (strip.clientWidth - tab.clientWidth) / 2,
+    );
+  }, [selectedWorld]);
   return (
     <div className="page">
       <section className="page-intro">
@@ -786,6 +666,7 @@ function Journey({
         {catalog.worlds.map((item) => (
           <button
             role="tab"
+            ref={item.id === world.id ? activeTab : undefined}
             aria-selected={item.id === world.id}
             className={cx(item.id === world.id && "active")}
             key={item.id}
@@ -807,42 +688,55 @@ function Journey({
           <h2>{world.name}</h2>
           <p>{world.description}</p>
         </div>
-        <strong>{missions.length} missions</strong>
+        <strong>{missionsOfWorld(catalog, world.id).length} missions</strong>
       </section>
       <div className="mission-path">
         {missions.map((mission, index) => {
-          const unlocked = isMissionUnlocked(mission, progress);
-          const complete = progress.completedMissions.includes(mission.id);
+          const reference = isReference(mission);
+          const unlocked = reference || isMissionUnlocked(mission, progress);
+          const complete =
+            !reference && progress.completedMissions.includes(mission.id);
           const challengeCount = mission.challenges.filter((c) =>
             isChallengeComplete(progress, mission.id, c.id),
           ).length;
           return (
             <div className="mission-node-wrap" key={mission.id}>
-              {index > 0 && (
+              {index > 0 && !reference && (
                 <div className={cx("path-line", complete && "complete")} />
               )}
               <button
                 className={cx(
                   "mission-node",
+                  reference && "reference",
                   complete && "complete",
-                  unlocked && !complete && "available",
+                  !reference && unlocked && !complete && "available",
                   !unlocked && "locked",
                 )}
                 disabled={!unlocked}
                 onClick={() => onMission(mission)}
               >
                 <div className="node-index">
-                  {complete ? "✓" : unlocked ? mission.order : "⌾"}
+                  {reference
+                    ? "❓"
+                    : complete
+                      ? "✓"
+                      : unlocked
+                        ? mission.order
+                        : "⌾"}
                 </div>
                 <div className="node-copy">
                   <div>
                     <span className="mini-label">
-                      MISSION {String(mission.order).padStart(2, "0")}
+                      {reference
+                        ? "Reference"
+                        : `MISSION ${String(mission.order).padStart(2, "0")}`}
                     </span>
-                    <span className="difficulty">
-                      {"◆".repeat(mission.difficulty)}
-                      {"◇".repeat(5 - mission.difficulty)}
-                    </span>
+                    {!reference && (
+                      <span className="difficulty">
+                        {"◆".repeat(mission.difficulty)}
+                        {"◇".repeat(5 - mission.difficulty)}
+                      </span>
+                    )}
                   </div>
                   <h3>{mission.title}</h3>
                   <p>
@@ -853,20 +747,30 @@ function Journey({
                   <div className="mission-meta">
                     <span>{mission.estimatedMinutes} min</span>
                     <span>{mission.fileCount} source files</span>
-                    <span>
-                      +
-                      {mission.xp +
-                        mission.challenges.reduce(
-                          (sum, c) => sum + c.xp,
-                          0,
-                        )}{" "}
-                      XP
-                    </span>
-                    <span>{challengeCount}/3 gates</span>
+                    {!reference && (
+                      <>
+                        <span>
+                          +
+                          {mission.xp +
+                            mission.challenges.reduce(
+                              (sum, c) => sum + c.xp,
+                              0,
+                            )}{" "}
+                          XP
+                        </span>
+                        <span>{challengeCount}/3 gates</span>
+                      </>
+                    )}
                   </div>
                 </div>
                 <span className="node-action">
-                  {complete ? "Review" : unlocked ? "Enter →" : "Locked"}
+                  {reference
+                    ? "Open"
+                    : complete
+                      ? "Review"
+                      : unlocked
+                        ? "Enter →"
+                        : "Locked"}
                 </span>
               </button>
             </div>
@@ -874,391 +778,6 @@ function Journey({
         })}
       </div>
     </div>
-  );
-}
-
-function MissionScreen({
-  mission,
-  catalog,
-  progress,
-  onProgress,
-  onNotice,
-  onBack,
-  onNext,
-  onDirty,
-}: {
-  mission: Mission;
-  catalog: Catalog;
-  progress: GameProgress;
-  onProgress: (p: GameProgress) => Promise<GameProgress>;
-  onDirty: (dirty: boolean) => void;
-  onNotice: (v: string) => void;
-  onBack: () => void;
-  onNext: (m: Mission) => void;
-}) {
-  const [content, setContent] = useState<MissionContent>();
-  const [contentError, setContentError] = useState<string>();
-  const [contentReload, setContentReload] = useState(0);
-  const [draftProgress, setDraftProgress] = useState(progress);
-  const [busy, setBusy] = useState(false);
-  const updateDraft = (next: GameProgress) => {
-    setDraftProgress(next);
-    onDirty(true);
-  };
-  useEffect(() => () => onDirty(false), [onDirty]);
-  async function saveDrafts() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      setDraftProgress(await onProgress(draftProgress));
-      onNotice("Mission drafts saved.");
-    } catch (e) {
-      onNotice((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const [activePath, setActivePath] = useState<string>();
-  const [hint, setHint] = useState<string>();
-  useEffect(() => {
-    const controller = new AbortController();
-    setContent(undefined);
-    setContentError(undefined);
-    fetch(`/content/${mission.contentFile}`, { signal: controller.signal })
-      .then((r) => {
-        if (!r.ok) throw new Error("This mission could not be loaded.");
-        return r.json();
-      })
-      .then((data: MissionContent) => {
-        if (
-          data.id !== mission.id ||
-          !Array.isArray(data.files) ||
-          !data.files.length
-        )
-          throw new Error("This mission archive is invalid.");
-        setContent(data);
-        const preferred =
-          data.files.find((f) => /LEARN\.md$/i.test(f.path)) ||
-          data.files.find((f) => /README\.md$/i.test(f.path)) ||
-          data.files[0];
-        setActivePath(preferred.path);
-      })
-      .catch((e) => {
-        if (e.name !== "AbortError") setContentError(e.message);
-      });
-    return () => controller.abort();
-  }, [mission, contentReload]);
-  if (!content)
-    return (
-      <div className="page">
-        <div className="mission-loading">
-          {contentError || "Decrypting mission archive…"}
-        </div>
-        {contentError && (
-          <>
-            <p role="alert">{contentError}</p>
-            <button onClick={() => setContentReload((v) => v + 1)}>
-              Retry mission
-            </button>
-            <button onClick={onBack}>Back to journey</button>
-          </>
-        )}
-      </div>
-    );
-  const predictionDone = isChallengeComplete(progress, mission.id, "predict");
-  const availableFiles = content.files.filter(
-    (file) => predictionDone || !isReferenceFile(file),
-  );
-  const lockedReferences =
-    content.files.filter(isReferenceFile).length -
-    availableFiles.filter(isReferenceFile).length;
-  const activeFile =
-    availableFiles.find((file) => file.path === activePath) ||
-    availableFiles[0];
-  const completeCount = mission.challenges.filter((c) =>
-    isChallengeComplete(progress, mission.id, c.id),
-  ).length;
-  const next = catalog.missions.find((item) =>
-    item.prerequisites.includes(mission.id),
-  );
-  return (
-    <div className="page mission-page">
-      <section className="mission-draft-bar">
-        <p>
-          Answers and scratch code are drafts. Save them here; submitting a
-          checkpoint also saves this mission's drafts. Checkpoints are
-          self-reported evidence, not automatic correctness grading.
-        </p>
-        <button
-          className="primary-button"
-          disabled={busy}
-          onClick={() => void saveDrafts()}
-        >
-          {busy ? "Saving…" : "Save mission drafts"}
-        </button>
-      </section>
-      <button className="back-button" onClick={onBack}>
-        ← Mission map
-      </button>
-      <section className="mission-header">
-        <div>
-          <span className="eyebrow">
-            {catalog.worlds.find((w) => w.id === mission.worldId)?.name} /
-            MISSION {String(mission.order).padStart(2, "0")}
-          </span>
-          <h1>{mission.title}</h1>
-          <p>{mission.summary}</p>
-          <div className="concept-row">
-            {mission.concepts.slice(0, 5).map((concept) => (
-              <span key={concept}>{concept}</span>
-            ))}
-          </div>
-        </div>
-        <div className="mission-score">
-          <strong>{completeCount}/3</strong>
-          <span>gates cleared</span>
-          <div>
-            {"◆".repeat(mission.difficulty)}
-            {"◇".repeat(5 - mission.difficulty)}
-          </div>
-        </div>
-      </section>
-      <div className="mission-layout">
-        <section className="lesson-panel">
-          <div className="lesson-toolbar">
-            <div>
-              <span className="eyebrow">FIELD MANUAL</span>
-              <h2>Learn only what you need</h2>
-            </div>
-            {lockedReferences > 0 && (
-              <span className="reference-lock">
-                ⌾ {lockedReferences} reference{" "}
-                {lockedReferences === 1 ? "file" : "files"} gated by prediction
-              </span>
-            )}
-          </div>
-          <CodeLab
-            mission={mission}
-            progress={draftProgress}
-            onProgress={updateDraft}
-            disabled={busy}
-          />
-          <div className="file-tabs" role="tablist" aria-label="Mission files">
-            {availableFiles.map((file) => (
-              <button
-                role="tab"
-                aria-selected={file.path === activeFile.path}
-                className={file.path === activeFile.path ? "active" : ""}
-                key={file.path}
-                onClick={() => setActivePath(file.path)}
-              >
-                {shortPath(file.path)}
-              </button>
-            ))}
-          </div>
-          <article className="lesson-content">
-            {activeFile.language === "markdown" ? (
-              <ReactMarkdown>{activeFile.content}</ReactMarkdown>
-            ) : (
-              <>
-                <div className="code-label">
-                  {activeFile.language} · preserved from {activeFile.path}
-                </div>
-                <pre>
-                  <code>{activeFile.content}</code>
-                </pre>
-              </>
-            )}
-          </article>
-        </section>
-        <aside className="challenge-rail">
-          <div className="rail-heading">
-            <span className="eyebrow">MISSION GATES</span>
-            <h2>Earn the unlock</h2>
-            <p>
-              Save drafts explicitly, or submit a checkpoint to save your
-              reasoning.
-            </p>
-          </div>
-          {mission.challenges.map((challenge, index) => {
-            const done = isChallengeComplete(
-              progress,
-              mission.id,
-              challenge.id,
-            );
-            const key = challengeKey(mission.id, challenge.id);
-            const response = draftProgress.responses[key] || "";
-            return (
-              <section
-                className={cx("challenge-card", done && "done")}
-                key={challenge.id}
-              >
-                <header>
-                  <span>{done ? "✓" : index + 1}</span>
-                  <div>
-                    <small>{challenge.kind}</small>
-                    <h3>{challenge.title}</h3>
-                  </div>
-                  <b>+{challenge.xp} XP</b>
-                </header>
-                <p>{challenge.prompt}</p>
-                {hint === challenge.id && (
-                  <div className="hint">◇ {challenge.hint}</div>
-                )}
-                <button
-                  className="hint-button"
-                  onClick={() =>
-                    setHint(hint === challenge.id ? undefined : challenge.id)
-                  }
-                >
-                  {hint === challenge.id ? "Hide hint" : "Need a nudge?"}
-                </button>
-                <textarea
-                  value={response}
-                  disabled={done || busy}
-                  maxLength={100000}
-                  onChange={(event) =>
-                    updateDraft(
-                      saveResponse(
-                        draftProgress,
-                        mission.id,
-                        challenge.id,
-                        event.target.value,
-                      ),
-                    )
-                  }
-                  placeholder={
-                    challenge.kind === "evidence"
-                      ? "Record command, result, failure evidence, and tradeoff…"
-                      : "Write from memory before reopening the reference…"
-                  }
-                />
-                <div className="challenge-footer">
-                  <span
-                    className={
-                      response.trim().length >= challenge.minLength
-                        ? "ready"
-                        : ""
-                    }
-                  >
-                    {response.trim().length}/{challenge.minLength}
-                  </span>
-                  <button
-                    disabled={
-                      done ||
-                      busy ||
-                      response.trim().length < challenge.minLength
-                    }
-                    onClick={async () => {
-                      if (busy) return;
-                      setBusy(true);
-                      try {
-                        const updated = completeChallenge(
-                          draftProgress,
-                          mission,
-                          challenge,
-                        );
-                        const accepted = await onProgress(updated);
-                        setDraftProgress(accepted);
-                        onNotice(
-                          updated.completedMissions.includes(mission.id) &&
-                            !progress.completedMissions.includes(mission.id)
-                            ? "Mission cleared. The next node is unlocked."
-                            : "Checkpoint secured.",
-                        );
-                      } catch (error) {
-                        onNotice((error as Error).message);
-                      } finally {
-                        setBusy(false);
-                      }
-                    }}
-                  >
-                    {done ? "Secured" : "Submit proof"}
-                  </button>
-                </div>
-              </section>
-            );
-          })}
-          {completeCount === 3 && next && (
-            <button
-              className="primary-button wide"
-              onClick={() => onNext(next)}
-            >
-              Enter unlocked mission →
-            </button>
-          )}
-        </aside>
-      </div>
-    </div>
-  );
-}
-
-function CodeLab({
-  mission,
-  progress,
-  onProgress,
-  disabled = false,
-}: {
-  mission: Mission;
-  progress: GameProgress;
-  onProgress: (progress: GameProgress) => void;
-  disabled?: boolean;
-}) {
-  const saved = progress.responses[challengeKey(mission.id, "code-lab")];
-  const starter = `// ${mission.title}\n// Make a small claim, then test it.\nconsole.assert(2 + 2 === 4, "Addition should work");\nconsole.log("Experiment complete");`;
-  const code = saved ?? starter;
-  const [output, setOutput] = useState("Run the lab to see output.");
-  const [running, setRunning] = useState(false);
-  const cancel = useRef<(() => void) | null>(null);
-  useEffect(() => () => cancel.current?.(), []);
-  const run = () => {
-    cancel.current?.();
-    setRunning(true);
-    cancel.current = startLab(code, (result) => {
-      setRunning(false);
-      setOutput(
-        `${result.ok ? "COMPLETED" : "ERROR"}\n${result.lines.join("\n") || "(no output)"}`,
-      );
-    });
-  };
-  return (
-    <section className="code-lab">
-      <div className="code-lab-heading">
-        <div>
-          <span className="eyebrow">ACTIVE LAB</span>
-          <h3>Test the idea in JavaScript</h3>
-          <p>
-            Scratch code stays in this mission's draft until you save it.
-            Include assertions and edge cases; a completed run alone does not
-            prove correctness.
-          </p>
-        </div>
-        <button onClick={run} disabled={running || disabled}>
-          {running ? "Running…" : "Run code ▶"}
-        </button>
-      </div>
-      <div className="code-lab-grid">
-        <textarea
-          aria-label="JavaScript scratch lab"
-          spellCheck={false}
-          disabled={disabled}
-          maxLength={100000}
-          value={code}
-          onChange={(event) =>
-            onProgress(
-              saveResponse(
-                progress,
-                mission.id,
-                "code-lab",
-                event.target.value,
-              ),
-            )
-          }
-        />
-        <pre aria-live="polite">{output}</pre>
-      </div>
-    </section>
   );
 }
 
@@ -1385,6 +904,7 @@ function Profile({
   onNotice,
   onDirty,
   onImported,
+  savePanel,
 }: {
   catalog: Catalog;
   progress: GameProgress;
@@ -1392,6 +912,7 @@ function Profile({
   onDirty: (dirty: boolean) => void;
   onImported: () => void;
   onNotice: (v: string) => void;
+  savePanel: ReactNode;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const badges = earnedBadges(progress);
@@ -1419,6 +940,7 @@ function Profile({
           devices or keep a backup.
         </p>
       </section>
+      {savePanel}
       <div className="profile-grid">
         <section className="panel profile-card">
           <div className="avatar">
@@ -1426,7 +948,7 @@ function Profile({
           </div>
           <h2>{progress.callsign}</h2>
           <p>
-            {progress.completedMissions.length} missions ·{" "}
+            {completedMissionCount(progress, catalog)} missions ·{" "}
             {progress.completedChallenges.length} gates · {progress.xp} XP
           </p>
           <div className="profile-actions">
@@ -1514,12 +1036,5 @@ function Profile({
     </div>
   );
 }
-
-const isReferenceFile = (file: ArchivedFile) =>
-  /(?:^|\/)(?:refactored|solution)(?:\/|\.|$)|SOLUTION\.md$/i.test(file.path);
-const shortPath = (value: string) => {
-  const pieces = value.split("/");
-  return pieces.slice(-2).join("/");
-};
 
 export default App;
