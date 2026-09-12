@@ -45,7 +45,7 @@ Use **Loadout & saves → Export save** for a portable JSON backup. **Import sav
 
 ## Curriculum archive
 
-The static archive under `public/content/` contains **334 missions**, **1,002 gates**, and **1,839 preserved source files** across ten worlds:
+The static archive under `public/content/` contains **334 catalog entries** — **329 missions** plus **5 reference documents** — **987 gates**, and **1,839 preserved source files** across ten worlds:
 
 1. Syntax Frontier
 2. Builder's Borough
@@ -60,6 +60,10 @@ The static archive under `public/content/` contains **334 missions**, **1,002 ga
 
 The C# material is retained as an optional expedition; the application and primary journey use JavaScript, TypeScript, and React.
 
+### Reference documents
+
+Five catalog entries are orientation material rather than build missions: the JavaScript handbook, the 50-question quiz, the repository README, the offline start-here guide, and the production skills diagnostic. They carry `kind: "reference"`, have no gates, award no XP, are always unlocked, never appear in another entry's prerequisites, and are excluded from completion counts and percentages. Missions that previously sat behind one of them were rewired to the nearest earlier mission in the same world.
+
 ## Quality checks
 
 ```bash
@@ -68,7 +72,9 @@ npm run verify:content
 npm run build
 ```
 
-`verify:content` recomputes every archived file hash and validates mission counts, prerequisites, and all challenge gates. See [MIGRATION_REPORT.md](./MIGRATION_REPORT.md) for the transformation report.
+Mission `summary`, `concepts`, and `estimatedMinutes` are derived from the archived Field Manual by `npm run refresh:metadata` (`scripts/refresh-catalog-metadata.mjs`). It is idempotent, rewrites top-level metadata only, and never touches the hashed `files[]` arrays.
+
+`verify:content` recomputes every archived file hash and validates mission counts, reference-document invariants, prerequisites, and all challenge gates. See [MIGRATION_REPORT.md](./MIGRATION_REPORT.md) for the transformation report.
 
 ## Reliable saves and learning-note CRUD
 

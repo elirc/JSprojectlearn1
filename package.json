@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run src",
     "test:watch": "vitest",
+    "refresh:metadata": "node scripts/refresh-catalog-metadata.mjs",
     "verify:content": "node scripts/verify-content.mjs",
     "test:browser": "playwright test"
   },

@@ -1,4 +1,5 @@
 export type ChallengeKind = "reflection" | "prediction" | "evidence";
+export type MissionKind = "mission" | "reference";
 export type ReviewRating = "again" | "hard" | "good" | "easy";
 
 export interface Challenge {
@@ -15,6 +16,8 @@ export interface Mission {
   id: string;
   sourceKey: string;
   worldId: string;
+  /** "reference" entries (handbooks, quizzes, orientation docs) are always open, have no gates, and never block the chain. Absent means "mission". */
+  kind?: MissionKind;
   title: string;
   summary: string;
   concepts: string[];

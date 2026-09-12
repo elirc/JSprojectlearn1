@@ -6,12 +6,13 @@ The former collection of separate lesson directories has been transformed into o
 
 ## Content retained
 
-- 334 playable missions
-- 1,002 required challenge gates
+- 334 catalog entries: 329 playable missions and 5 reference documents
+- 987 required challenge gates (3 per mission; reference documents have none)
 - 1,839 archived source and lesson files
 - 10,172,345 archived bytes
 - 10 curriculum worlds spanning JavaScript, TypeScript, React, algorithms, production engineering, and an optional C# track
 - Full source paths, language metadata, byte counts, and SHA-256 hashes in `public/content/migration-report.json`
+- Mission `summary`, `concepts`, and `estimatedMinutes` derived from the archived Field Manual by the idempotent `npm run refresh:metadata`; archived `files[]` content and hashes are never rewritten
 
 Generated build artifacts such as `bin`, `obj`, `.vs`, and prior distribution folders were intentionally excluded because they were not authored lessons or source material.
 
@@ -20,7 +21,7 @@ Generated build artifacts such as `bin`, `obj`, `.vs`, and prior distribution fo
 - Added a responsive React 19 + TypeScript + Vite application.
 - Added onboarding with callsign and focus-block selection.
 - Added sequential mission prerequisites and locked world transitions.
-- Added recall, prediction, and build-evidence gates to every mission.
+- Added recall, prediction, and build-evidence gates to every mission (reference documents are exempt and stay unlocked).
 - Gated reference, solution, answer, and refactored files until prediction is complete.
 - Added per-gate and per-mission XP, levels, streaks, badges, and progress maps.
 - Added a persistent JavaScript scratch lab that executes in an isolated Web Worker and stops infinite loops after 2.5 seconds.
@@ -33,6 +34,6 @@ Generated build artifacts such as `bin`, `obj`, `.vs`, and prior distribution fo
 
 - Seven progression, idempotency, review-scheduling, streak, and prerequisite tests pass.
 - Production TypeScript/Vite build passes.
-- Archive verification passes for all 1,839 files and 1,002 gates.
+- Archive verification passes for all 1,839 files and 987 gates.
 - Chromium smoke test passes onboarding, locked nodes, mission loading, runnable lab output, all three gates, XP awards, next-node unlock, and persistence after reload.
 - Desktop and 390×844 mobile layouts were visually inspected.
