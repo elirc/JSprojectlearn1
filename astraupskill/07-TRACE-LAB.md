@@ -2,6 +2,30 @@
 
 Use a disposable browser context and export any progress you want to keep. Open developer tools and locate the `skillforge.quest.progress.v1` local-storage value. Do not edit your main learning profile for this exercise. Keep a short table with columns for action, editor base revision, stored revision, stored epoch, visible accepted title, and draft title.
 
+## Inside the lock callback
+
+This is the code your Trace A breakpoint lands in and the code Trace B fails at: normalization happens outside the lock, and both revision and epoch are compared inside it before anything is written. From `src/game/storage.ts:20-36`:
+
+```ts
+export async function persistProgress(
+  progress: GameProgress,
+  storage: StoragePort = localStorage,
+  lock: LockPort = browserLock,
+): Promise<GameProgress> {
+  const proposal = normalizeProgress(progress);
+  return lock(() => {
+    const current = loadProgress(storage);
+    if (
+      proposal.revision !== current.revision ||
+      proposal.epoch !== current.epoch
+    )
+      throw new Error(
+        "Progress changed in another tab. Export your pending draft or copy its text, then load current progress before retrying.",
+      );
+    if (current.revision === Number.MAX_SAFE_INTEGER)
+      throw new Error("Save revision is exhausted. Export for recovery.");
+```
+
 ## Trace A: a normal note update
 
 Create “Boundary notes” and record the saved revision. Open Edit and change the title to “Runtime boundary notes.” Before saving, inspect storage: its title and revision should be unchanged. Place a breakpoint in `LearningNotes.save`, then step through `updateNote`, `App.commitProgress`, and `persistProgress`. Observe that the schema is checked before the lock callback writes anything. Inside the callback, compare the proposal and current revision/epoch. After `setItem` returns, inspect the accepted object returned to the parent. The editor closes only after that acceptance.

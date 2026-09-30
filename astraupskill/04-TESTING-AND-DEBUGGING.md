@@ -6,6 +6,17 @@ Run `npm run build` to check TypeScript and production bundling. Compilation doe
 
 The browser suite covers onboarding, note CRUD and identity, search, reload persistence, confirmed deletion, competing tabs, pending exports, quota failures, corrupt-data recovery, mission drafts, import replacement, fetch retries, worker assertions and timeouts, and narrow layouts. Download assertions read the actual downloaded bytes. This catches a recovery button that appears functional but exports the wrong snapshot.
 
+## The four commands
+
+Each layer has its own command, and only the last one needs a browser runtime installed. From `package.json`, `scripts`:
+
+```bash
+npm test                        # vitest run src
+npm run build                   # tsc -b && vite build
+npx playwright install chromium # once, before the browser suite
+npm run test:browser            # playwright test
+```
+
 ## A reproducible conflict investigation
 
 1. Create a note and open the same app URL in a second tab.

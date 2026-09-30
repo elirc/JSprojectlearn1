@@ -11,3 +11,13 @@ The main entry is [App.tsx](../src/App.tsx). It loads the static catalog, reads 
 [storage.ts](../src/game/storage.ts) owns the browser boundary. It reads the original key, coordinates cooperating tabs with Web Locks, compares revision and epoch, writes once, and returns the accepted snapshot. [SavePanel.tsx](../src/components/SavePanel.tsx) exposes recovery actions without automatically replacing damaged data. [engine.ts](../src/game/engine.ts) owns mission completion, XP, unlocks, and spaced review scheduling. [lab.ts](../src/game/lab.ts) owns worker execution and cleanup.
 
 The files in `public/content/` are the preserved curriculum archive. Application improvements do not require rewriting those embedded source files. `scripts/verify-content.mjs` verifies the archive hashes and relationships. Unit tests live beside the game modules; [browser tests](../tests/learning.spec.ts) cross the React and browser boundaries. When changing behavior, identify the smallest owner of the rule first, then find the test that can observe its consequence.
+
+## In scope and out of scope in `src/game/`
+
+| file | scope | why |
+|---|---|---|
+| `notes.ts`, `schema.ts`, `storage.ts` (+ `storage.test.ts`) | **in** | the CRUD, validation, revision and persistence lessons |
+| `drafts.ts` (+ `drafts.test.ts`) | in, second pass | draft-versus-accepted state |
+| `engine.ts` (+ `engine.test.ts`), `lab.ts`, `lesson.ts` | out | game mechanics; read only if a test you touch imports them |
+| `catalog.ts` and the 334-mission archive | out | content, not behavior |
+

@@ -4,6 +4,36 @@ This course uses the application you are running as the worked example. SkillFor
 
 Start with Node 22 or newer, then run `npm ci` and `npm run dev` from this project folder. Open the URL printed by Vite. Create a callsign, open **Loadout & saves**, and create a note titled “Why a draft is not a saved record.” In its body, describe what should happen when storage fails. Reload the page and verify that the note survives. Export a backup before experimenting with resets or imports.
 
+## Prerequisites and glossary
+
+**Prerequisites:** TypeScript with React hooks, promises and `async`/`await`, `localStorage` and JSON, and running a Vitest file. The vanilla browser course in `04 JavaScript Training/react` is a lighter predecessor.
+
+| Term | Meaning here | Where in this project |
+|---|---|---|
+| accepted progress | The saved record returned by storage, as distinct from what a component is holding. | `loadProgress` and `persistProgress` in `src/game/storage.ts` |
+| revision | The counter a save must match and that an accepted save raises by one. | `proposal.revision !== current.revision` in `persistProgress`, `src/game/storage.ts` |
+| epoch | The identity of a save file, so a reset is not mistaken for an edit. | `epoch` in `persistProgress`, `src/game/storage.ts` |
+| web lock | Serialises two saves in the same browser before the compare runs. | `browserLock` in `src/game/storage.ts` |
+| normalization | Turning untrusted stored JSON into a valid domain object or an error. | `normalizeProgress` and `normalizeNote` in `src/game/schema.ts` |
+| catalog validation | Rejecting progress that refers to missions the catalog does not contain. | `validateAgainstCatalog` in `src/game/schema.ts` |
+| bounded write | A size ceiling enforced before anything is stored. | `boundedJson` and `MAX_SAVE_BYTES` in `src/game/schema.ts` |
+| draft store | Unsaved mission text kept apart from accepted progress. | `readMissionDrafts` and `writeMissionDrafts` in `src/game/drafts.ts` |
+| commit boundary | The single place a proposal becomes accepted state for the UI. | `commitProgress` in `src/App.tsx` |
+| identity vs content | Editing a note changes its text and `updatedAt`, never its id. | `updateNote` in `src/game/notes.ts` |
+| recovery export | A serialized copy that can be read back after a failed save. | `serializeProgress` and `parseProgressExport` in `src/game/storage.ts` |
+
+## Setup, in one block
+
+```powershell
+node --version                    # 22.x
+npm ci
+npx playwright install chromium   # only for the browser suite
+npm test                          # vitest, src/**
+npm run build
+npm run verify:content
+npm run test:browser              # playwright, tests/
+```
+
 ## Suggested learning sequence
 
 1. Read [the codebase map](01-CODEBASE-MAP.md), then locate the component, pure domain operation, schema validator, and storage adapter yourself. Explain why each owns a different decision.

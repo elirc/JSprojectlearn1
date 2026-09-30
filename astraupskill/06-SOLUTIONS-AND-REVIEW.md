@@ -13,3 +13,34 @@ For SQL, the note update and audit insertion belong in the same transaction if t
 In review, ask the author to trace one rejected save. Which object changes? Which object stays unchanged? What can the learner export? What happens after reload? Then ask them to trace a reset while an older tab remains open. They should explain why a new epoch prevents an old-generation write even if revision numbers coincide.
 
 Mid-level readiness means handling those questions without depending on happy-path demonstrations. Look for focused tests, readable names, bounded inputs, explicit compatibility decisions, and honest limits. A polished screenshot supports usability review, but it cannot establish authorization, transaction correctness, or recovery from an interrupted deployment.
+
+## What "demonstrates failure behavior" looks like
+
+A strong answer asserts on the refusal and on the stored bytes, not just on a thrown error. This shipped case resets identity, then proves an old tab's proposal is refused and the stored record is the reset one. From `src/game/storage.test.ts:136-157`:
+
+```ts
+it("reset checks exact raw data and changes identity so old tabs cannot resurrect drafts", async () => {
+  const f = fixture();
+  const lock = queue();
+  const initial = await persistProgress(
+    { ...createProgress(), callsign: "Old" },
+    f.storage,
+    lock,
+  );
+  const before = f.raw();
+  f.storage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({ ...initial, callsign: "Newer" }),
+  );
+  await expect(resetProgress(before, f.storage, lock)).rejects.toThrow(
+    /changed/,
+  );
+  const reset = await resetProgress(f.raw(), f.storage, lock);
+  expect(reset.epoch).not.toBe(initial.epoch);
+  await expect(persistProgress(initial, f.storage, lock)).rejects.toThrow(
+    /another tab/,
+  );
+  expect(loadProgress(f.storage).callsign).toBe("");
+});
+```
+

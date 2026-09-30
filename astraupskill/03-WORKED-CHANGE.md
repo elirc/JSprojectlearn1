@@ -11,3 +11,26 @@ The parent then validates the candidate against the catalog and calls `persistPr
 For the winning tab, storage creates the next revision, serializes the bounded document, and calls `setItem`. Only a successful call returns the accepted snapshot. The parent adopts it, and the editor closes. The distinction is observable: replace `Storage.prototype.setItem` with a function that throws in a disposable test page, then submit. The same candidate must remain recoverable and the original saved value must remain identical.
 
 Now implement a small extension yourself: add a `summary` field limited to 200 characters. Change the type, schema, form, card, import compatibility rule, and tests. Decide whether old saves default the field to an empty string. Test a legacy save, exactly 200 characters, 201 characters, and a stale update containing a valid summary. Do not merely add an HTML `maxLength`; imported JSON bypasses that control. Explain why the schema is the authoritative boundary even though the form helps users avoid invalid input.
+
+## The pure half of the change
+
+`updateNote` never touches storage: it rejects an unknown identifier, stamps `updatedAt`, and returns a new progress object, leaving the original untouched for the debugger comparison described above. From `src/game/notes.ts:14-28`:
+
+```ts
+export function updateNote(
+  progress: GameProgress,
+  input: NoteInput,
+  now = new Date(),
+): GameProgress {
+  const note = normalizeNote({ ...input, updatedAt: now.toISOString() });
+  if (!progress.notes.some((item) => item.id === note.id))
+    throw new Error(
+      "This note no longer exists. Keep its text before loading current progress.",
+    );
+  return normalizeProgress({
+    ...progress,
+    notes: progress.notes.map((item) => (item.id === note.id ? note : item)),
+  });
+}
+```
+

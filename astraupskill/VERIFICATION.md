@@ -1,6 +1,6 @@
 # Verification record and practical limits
 
-The implementation is validated in a staged copy before its finite changed-file manifest is delivered to the original project. The central completion report records the actual final check results. The repeatable project commands are `npm test`, `npm run build`, `npm run verify:content`, and `npm run test:browser`. Browser installation is a separate one-time step: `npx playwright install chromium`. The browser configuration starts its own strict loopback server and uses isolated contexts.
+The implementation is validated in a staged copy before its finite list of changed files is delivered to the original project. The central completion report records the actual final check results. The repeatable project commands are `npm test`, `npm run build`, `npm run verify:content`, and `npm run test:browser`. Browser installation is a separate one-time step: `npx playwright install chromium`. The browser configuration starts its own strict loopback server and uses isolated contexts.
 
 The model suite exercises normalization of legacy saves, malformed nested fields, reserved object keys, size bounds, catalog relationships, note identity and immutable operations, accepted-write ordering, quota rejection, queued competing writers, and reset generations. Progression checks exercise prerequisites, challenge membership, canonical XP rewards, due-time constraints, and runtime review ratings. These checks establish the specified local model behavior; they do not assess the educational truth of a learner's written answer.
 
@@ -11,6 +11,10 @@ Archive verification recomputes the preserved content evidence: 334 missions, 1,
 Important boundaries remain. Storage is local to this origin and browser profile. Clearing site data removes it. Web Locks coordinate cooperating copies of this application on localhost or HTTPS; a script that ignores this protocol can still overwrite storage. Whole-document revisions may reject unrelated concurrent edits. Backups are manual, and an oversized pending export may need careful reduction before the bounded importer accepts it. Raw damaged-data exports are recovery material, not automatically valid portable saves.
 
 There is no server authentication, SQL transaction layer, deployment verification, distributed concurrency guarantee, or full accessibility certification. Worker execution is a convenience for local experiments, not a security boundary; code can access worker capabilities, including network APIs. Output is bounded and the worker is terminated after 2.5 seconds, but completion is not proof of correctness. These limitations are explicit starting points for the backend and operational exercises, rather than features the current app claims to provide.
+
+## What was counted, and when
+
+As of 2026-09-18 (fix pass), counted from the tree: `src/game/engine.test.ts` has 11 `it(` cases; `src/game/storage.test.ts` has 12 `it(` cases plus 2 `it.each` blocks that expand at run time; `tests/learning.spec.ts` has 16 `test(` scenarios. Vitest and Playwright report expanded counts, so a rerun shows more cases than these literal counts; if your numbers differ from the "Executed result" section, re-count with `grep -c "^\s*it(" src/game/*.test.ts` before assuming drift.
 
 ## Executed result
 

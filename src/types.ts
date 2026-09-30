@@ -39,6 +39,8 @@ export interface World {
   color: string;
   description: string;
   optional?: boolean;
+  /** Repo folder holding this world's runnable projects; its missions are built at a desk, not in the lab. */
+  workspace?: string;
   missionCount: number;
 }
 

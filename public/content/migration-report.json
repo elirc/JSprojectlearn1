@@ -1,9 +1,9 @@
 {
   "generatedAt": "2026-09-04T04:08:33.764Z",
-  "sourceFileCount": 1839,
-  "sourceBytes": 10172345,
-  "missionCount": 334,
-  "archivedFileCount": 1839,
+  "sourceFileCount": 1851,
+  "sourceBytes": 10193564,
+  "missionCount": 336,
+  "archivedFileCount": 1851,
   "worldCounts": {
     "foundations": 17,
     "apps": 11,
@@ -14,7 +14,9 @@
     "react": 61,
     "dsa": 31,
     "production": 63,
-    "csharp": 37
+    "csharp": 37,
+    "effect": 1,
+    "agents": 1
   },
   "sourceHashes": [
     {
@@ -11050,6 +11052,78 @@
       "bytes": 5622,
       "sha256": "f5d7e865a25161880e0644ee6296f450b8b9bee3f0a76c8e54b4f1b4d551bf7d",
       "missionId": "csharp-csharp-overview"
+    },
+    {
+      "path": "effect/01-effect-basics/LEARN.md",
+      "bytes": 5691,
+      "sha256": "4c31303ff65c198bfb58eae3f4e26650d4fda01ecb42f66f233030eb631a2157",
+      "missionId": "effect-01-effect-basics"
+    },
+    {
+      "path": "effect/01-effect-basics/package.json",
+      "bytes": 380,
+      "sha256": "e03e04c1ca842cb90bda44834040d7c6ece2527ce5e69cc195bb1aea40ce238b",
+      "missionId": "effect-01-effect-basics"
+    },
+    {
+      "path": "effect/01-effect-basics/src/01-first-effect.ts",
+      "bytes": 1327,
+      "sha256": "1f0a9cb449abacff8e43d73d7b159d883206e23ef04e46c247c0868f77964e7d",
+      "missionId": "effect-01-effect-basics"
+    },
+    {
+      "path": "effect/01-effect-basics/src/exercises.test.ts",
+      "bytes": 2034,
+      "sha256": "48d3a7a78d653d4fe56ca69691572d29b5e97cb93b680d5669e3c087f86027c9",
+      "missionId": "effect-01-effect-basics"
+    },
+    {
+      "path": "effect/01-effect-basics/src/exercises.ts",
+      "bytes": 1222,
+      "sha256": "8115b0485edf3e6802e8036d859a1fce04a2cf2623f8b3ec7348188687bfa8de",
+      "missionId": "effect-01-effect-basics"
+    },
+    {
+      "path": "effect/01-effect-basics/src/solutions.ts",
+      "bytes": 1153,
+      "sha256": "a7fde7cf66b8ddc00c786f1c7a6ffa491b78b4195f2239b4d602d608bdc8b3ca",
+      "missionId": "effect-01-effect-basics"
+    },
+    {
+      "path": "effect/01-effect-basics/tsconfig.json",
+      "bytes": 282,
+      "sha256": "03f16a711894381ae5dd9c575e581f6aabc108eac00edda93fb3dd35e59664f0",
+      "missionId": "effect-01-effect-basics"
+    },
+    {
+      "path": "agents/01-spec-driven-build/DEFECT-LOG.md",
+      "bytes": 851,
+      "sha256": "03eed1e2ccfa7752280593256281428a32d723536ca7ba594c0f128ec552c623",
+      "missionId": "agents-01-spec-driven-build"
+    },
+    {
+      "path": "agents/01-spec-driven-build/EXAMPLE-SPEC.md",
+      "bytes": 1419,
+      "sha256": "a1530f9080d20db20a375492dd11a78ac93187e09af8ac088aeaa6234aa35aa6",
+      "missionId": "agents-01-spec-driven-build"
+    },
+    {
+      "path": "agents/01-spec-driven-build/LEARN.md",
+      "bytes": 4805,
+      "sha256": "3d5f93435731c736b4f113ee88fb0443386a6baff8440499171cd99f525f606f",
+      "missionId": "agents-01-spec-driven-build"
+    },
+    {
+      "path": "agents/01-spec-driven-build/REVIEW-CHECKLIST.md",
+      "bytes": 1221,
+      "sha256": "bd7ed39930eaa30ed86a2323dd17c5bad59e176d7f827363432e9211c9fe2bf6",
+      "missionId": "agents-01-spec-driven-build"
+    },
+    {
+      "path": "agents/01-spec-driven-build/SPEC-TEMPLATE.md",
+      "bytes": 834,
+      "sha256": "b9a28b826ffb6422103403478231311ef329aec9b2f129327b2851618dba5754",
+      "missionId": "agents-01-spec-driven-build"
     }
   ]
 }
