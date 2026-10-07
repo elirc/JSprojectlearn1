@@ -6,7 +6,7 @@ The model suite exercises normalization of legacy saves, malformed nested fields
 
 The browser suite exercises real forms and downloads. It checks that onboarding writes only on submission, note CRUD survives reload, deletion can be cancelled, stale tabs retain pending drafts, quota errors preserve accepted state, corrupt original bytes can be exported, reset requires confirmation, mission drafts save explicitly, imported progress is validated and confirmed, failed content requests can be retried, and the lab reports assertion failures and terminates endless loops. Desktop and narrow journal screenshots are saved under `astraupskill/images/` for visual review.
 
-Archive verification recomputes the preserved content evidence: 334 missions, 1,002 gates, 1,839 source files, and ten worlds. The application changes do not expand that archive or claim to complete its historical expansion plans. Existing handoff and migration documents describe prior work; this course describes the delivered reliability and CRUD changes.
+Archive verification recomputes the preserved content evidence. Rerun on 2026-10-06, `npm run verify:content` reported 12 worlds, 336 catalog entries (331 missions + 5 reference documents), 993 gates and 1,851 source files, ending in PASS. (Earlier drafts of this page quoted 334 missions, 1,002 gates, 1,839 files and ten worlds; those predate the Effect Forge and Agent Works worlds, and 1,002 was never consistent with three gates per mission.) The application changes do not expand that archive or claim to complete its historical expansion plans. Existing handoff and migration documents describe prior work; this course describes the delivered reliability and CRUD changes.
 
 Important boundaries remain. Storage is local to this origin and browser profile. Clearing site data removes it. Web Locks coordinate cooperating copies of this application on localhost or HTTPS; a script that ignores this protocol can still overwrite storage. Whole-document revisions may reject unrelated concurrent edits. Backups are manual, and an oversized pending export may need careful reduction before the bounded importer accepts it. Raw damaged-data exports are recovery material, not automatically valid portable saves.
 
@@ -14,8 +14,10 @@ There is no server authentication, SQL transaction layer, deployment verificatio
 
 ## What was counted, and when
 
-As of 2026-09-18 (fix pass), counted from the tree: `src/game/engine.test.ts` has 11 `it(` cases; `src/game/storage.test.ts` has 12 `it(` cases plus 2 `it.each` blocks that expand at run time; `tests/learning.spec.ts` has 16 `test(` scenarios. Vitest and Playwright report expanded counts, so a rerun shows more cases than these literal counts; if your numbers differ from the "Executed result" section, re-count with `grep -c "^\s*it(" src/game/*.test.ts` before assuming drift.
+As of 2026-09-18 (fix pass), counted from the tree: `src/game/engine.test.ts` has 11 `it(` cases; `src/game/storage.test.ts` has 12 `it(` cases plus 2 `it.each` blocks that expand at run time; `tests/learning.spec.ts` has 16 `test(` scenarios. Re-counted 2026-10-06: unchanged, and `src/game/drafts.test.ts` (not listed above) has 15 `it(` cases. Vitest and Playwright report expanded counts, so a rerun shows more cases than these literal counts; if your numbers differ from the "Executed result" section, re-count with `grep -c "^\s*it(" src/game/*.test.ts` before assuming drift.
 
 ## Executed result
+
+*Frozen record of the delivery run; its file and byte counts predate the archive's growth (see above).*
 
 All 36 model tests and 12 distinct Chromium scenarios passed. The review fixture required correction from `dueAt` to the existing `due` field; its focused rerun passed, together with a final layout recheck. TypeScript and the production bundle passed, and archive verification confirmed all 1,839 source files and 10,172,345 bytes. Both final screenshots were visually reviewed. No live account, personal browser profile, or external deployment was used.

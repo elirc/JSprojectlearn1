@@ -10,6 +10,8 @@ Both tracks deliberately build **one product** — a study-session tracker calle
 **Forgelog** (sessions have a topic, minutes, a note, and a date) — layer by
 layer, so CRUD skill compounds instead of restarting from zero each mission.
 
+> **Status (2026-10-06):** folders exist for Effect 01–04 and Agents 01–04; only `effect-01-effect-basics` and `agents-01-spec-driven-build` are packed into the app catalog. Rows without a folder are plans, not code.
+
 ## Effect Forge ladder (worldId: `effect`)
 
 | # | Mission | You learn |
@@ -32,7 +34,7 @@ layer, so CRUD skill compounds instead of restarting from zero each mission.
 | 01 | Spec-driven agent building | writing specs and acceptance criteria, reviewing agent diffs, defect logging |
 | 02 | CLAUDE.md & skills engineering | steering agents with project memory, before/after measurement |
 | 03 | Tool-use loop from scratch | Claude API + hand-rolled tools that fix a failing test |
-| 04 | Agent over your CRUD API | natural-language CRUD against the Effect Forge API |
+| 04 | Agent over your CRUD store | natural-language CRUD tools over a local JSON-file Forgelog store (`src/store.mjs`), driven by the SDK tool runner; the HTTP version waits for Effect mission 05 |
 | 05 | MCP server | wrap the API as an MCP server for Claude Code |
 | 06 | Structured output with Schema | validating LLM tool output with your `effect/Schema` types |
 | 07 | Evals | a small harness scoring tool-call correctness |

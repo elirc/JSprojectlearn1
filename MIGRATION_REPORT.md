@@ -1,5 +1,7 @@
 # SkillForge Quest migration report
 
+> **Status note (2026-10-06):** this is the record of the original migration and its counts are frozen. The archive has since grown: `npm run verify:content` now reports 12 worlds, 336 catalog entries (331 missions + 5 reference documents), 993 gates and 1,851 archived files (10,193,564 bytes), after the Effect Forge and Agent Works worlds were added. See the README for current numbers.
+
 ## Outcome
 
 The former collection of separate lesson directories has been transformed into one React and TypeScript learning application. The originals were captured verbatim in the content archive, verified by SHA-256, and then removed from the working tree as requested.

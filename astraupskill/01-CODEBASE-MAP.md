@@ -17,7 +17,7 @@ The files in `public/content/` are the preserved curriculum archive. Application
 | file | scope | why |
 |---|---|---|
 | `notes.ts`, `schema.ts`, `storage.ts` (+ `storage.test.ts`) | **in** | the CRUD, validation, revision and persistence lessons |
-| `drafts.ts` (+ `drafts.test.ts`) | in, second pass | draft-versus-accepted state |
+| `drafts.ts` (+ `drafts.test.ts`, 15 cases) | in, second pass | draft-versus-accepted state |
 | `engine.ts` (+ `engine.test.ts`), `lab.ts`, `lesson.ts` | out | game mechanics; read only if a test you touch imports them |
-| `catalog.ts` and the 334-mission archive | out | content, not behavior |
+| `catalog.ts` and the 331-mission archive | out | content, not behavior |
 

@@ -1,7 +1,9 @@
 # HANDOFF — 10x curriculum expansion (334 → 3,340 missions)
 
+> **Status note (2026-10-06):** this plan was not executed. The catalog holds 336 entries (331 missions), and there is no `content-src/` folder and no `scripts/build-content.mjs`. The growth since this was written came from the Effect Forge and Agent Works worlds (see `projects/README.md`), not from this expansion. Treat the rest of this folder as a design record.
+
 You are picking up work on **SkillForge Quest**, the React + TypeScript learning app in this
-repository (`C:\Users\Owner\Desktop\JSProjectLearn`). This folder is self-contained: it was
+repository. This folder is self-contained: it was
 written specifically so you can start without any prior conversation context.
 
 ## The job

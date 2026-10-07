@@ -45,7 +45,7 @@ Use **Loadout & saves → Export save** for a portable JSON backup. **Import sav
 
 ## Curriculum archive
 
-The static archive under `public/content/` contains **334 catalog entries** — **329 missions** plus **5 reference documents** — **987 gates**, and **1,839 preserved source files** across ten worlds:
+The static archive under `public/content/` contains **336 catalog entries** — **331 missions** plus **5 reference documents** — **993 gates**, and **1,851 preserved source files** (10,193,564 bytes) across twelve worlds (counts from `npm run verify:content`, 2026-10-06):
 
 1. Syntax Frontier
 2. Builder's Borough
@@ -57,6 +57,10 @@ The static archive under `public/content/` contains **334 catalog entries** — 
 8. Algorithm Arena
 9. Production Nexus
 10. C# Side Expedition (optional)
+11. Effect Forge
+12. Agent Works
+
+Effect Forge and Agent Works each have one packed mission so far; their live project folders, and the planned ladders, are in [projects/README.md](projects/README.md).
 
 The C# material is retained as an optional expedition; the application and primary journey use JavaScript, TypeScript, and React.
 
@@ -75,6 +79,21 @@ npm run build
 Mission `summary`, `concepts`, and `estimatedMinutes` are derived from the archived Field Manual by `npm run refresh:metadata` (`scripts/refresh-catalog-metadata.mjs`). It is idempotent, rewrites top-level metadata only, and never touches the hashed `files[]` arrays.
 
 `verify:content` recomputes every archived file hash and validates mission counts, reference-document invariants, prerequisites, and all challenge gates. See [MIGRATION_REPORT.md](./MIGRATION_REPORT.md) for the transformation report.
+
+## Relationship to the jsprojectlearn repository
+
+This repository began as a snapshot of the JSProjectLearn lesson folders (the initial commit) and was then migrated into this app: the lesson folders were packed into `public/content/missions/*.json` and removed from the working tree. A hash comparison on 2026-10-06 of the 1,851 archived files against the separate `elirc/jsprojectlearn` repository (commit `0659a8b`, now the "DevPath" app) found:
+
+| Archived track | Files | Byte-identical in jsprojectlearn | Same path, different bytes | Not present there |
+|---|---|---|---|---|
+| JavaScript `NN-*` | 556 | 552 | 4 | 0 |
+| `react/` | 327 | 327 | 0 | 0 |
+| `typescript/` | 268 | 267 | 1 | 0 |
+| `csharp/` | 394 | 392 | 2 | 0 |
+| root `HANDBOOK`/`QUIZ`/`README`/`START-HERE` | 4 | 0 | 4 | 0 |
+| `dsa/`, `improvedcodex/`, `effect/`, `agents/` | 302 | 0 | 0 | 302 |
+
+So the project lessons are, with a handful of exceptions, the same files in both repositories. The two have since diverged: jsprojectlearn rewrote its root spine files, dropped the DSA track, and added guides and drill decks that this archive does not contain; this repository added the DSA, `improvedcodex`, Effect and agent material and the app around it. An edit to a lesson in one repository does not reach the other, and the archived copies here must not be edited by hand because `verify:content` checks their SHA-256 hashes.
 
 ## Reliable saves and learning-note CRUD
 

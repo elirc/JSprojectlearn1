@@ -1,12 +1,12 @@
 # SkillForge Quest: build reliable CRUD from a learning journal
 
-This course uses the application you are running as the worked example. SkillForge has 334 archived missions, but reading those missions alone does not demonstrate that you can maintain a web application. Here you will follow one feature through forms, domain rules, browser persistence, concurrency, failure recovery, and tests. The feature is a mission-linked learning journal. You can create notes, list and search them, edit their contents without changing their identity, and delete them after confirmation.
+This course uses the application you are running as the worked example. SkillForge has 331 archived missions, but reading those missions alone does not demonstrate that you can maintain a web application. Here you will follow one feature through forms, domain rules, browser persistence, concurrency, failure recovery, and tests. The feature is a mission-linked learning journal. You can create notes, list and search them, edit their contents without changing their identity, and delete them after confirmation.
 
 Start with Node 22 or newer, then run `npm ci` and `npm run dev` from this project folder. Open the URL printed by Vite. Create a callsign, open **Loadout & saves**, and create a note titled “Why a draft is not a saved record.” In its body, describe what should happen when storage fails. Reload the page and verify that the note survives. Export a backup before experimenting with resets or imports.
 
 ## Prerequisites and glossary
 
-**Prerequisites:** TypeScript with React hooks, promises and `async`/`await`, `localStorage` and JSON, and running a Vitest file. The vanilla browser course in `04 JavaScript Training/react` is a lighter predecessor.
+**Prerequisites:** TypeScript with React hooks, promises and `async`/`await`, `localStorage` and JSON, and running a Vitest file. The React Reactor world inside this app is a lighter predecessor.
 
 | Term | Meaning here | Where in this project |
 |---|---|---|
